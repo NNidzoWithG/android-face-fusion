@@ -12,7 +12,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.pv.androidfacefusion"
+        applicationId = "com.gswap.video.dev"
         minSdk = 26
         targetSdk = 36
         versionCode = 1

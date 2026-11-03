@@ -2,6 +2,10 @@ package com.pv.androidfacefusion;
 
 import android.content.Context;
 import android.net.Uri;
+import android.os.ParcelFileDescriptor;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.OutputStream;
 import android.graphics.Bitmap;
 import android.media.MediaMetadataRetriever;
 import android.media.MediaCodec;
@@ -55,7 +59,45 @@ public class VideoProcessor {
         return faceProcessor.processFaceFusionWithMapping(frame, mapping);
     }
 
-    public void processVideo(Uri inputVideo, Uri outputVideo, float[] sourceEmbedding) {
-        throw new UnsupportedOperationException("Video processing not implemented yet");
+    public void processVideo(Uri inputVideo, Uri outputVideo, float[] sourceEmbedding) throws Exception {
+        if (sourceEmbedding == null || sourceEmbedding.length == 0)
+            throw new IllegalArgumentException("Source face missing");
+        VideoInfo info = getVideoInfo(inputVideo);
+        int width = Math.max(2, (info.width / 2) * 2);
+        int height = Math.max(2, (info.height / 2) * 2);
+        int fps = 10;
+        long frameStepUs = 1000000L / fps;
+        File tempVideo = File.createTempFile("gswap_", ".mp4", context.getCacheDir());
+        try {
+            try (VideoEncoder encoder = new VideoEncoder(
+                    tempVideo.getAbsolutePath(), width, height, fps)) {
+                for (long timeUs = 0; timeUs < info.durationUs; timeUs += frameStepUs) {
+                    Bitmap frame = extractFrame(inputVideo, timeUs);
+                    if (frame == null) continue;
+                    try {
+                        Bitmap result = swapVideoFrame(frame, sourceEmbedding);
+                        try {
+                            encoder.addFrame(result);
+                        } finally {
+                            if (result != frame) result.recycle();
+                        }
+                    } finally {
+                        frame.recycle();
+                    }
+                }
+                encoder.finish();
+            }
+            try (FileInputStream input = new FileInputStream(tempVideo);
+                 OutputStream output = context.getContentResolver().openOutputStream(outputVideo, "w")) {
+                if (output == null) throw new java.io.IOException("Cannot open output video");
+                byte[] buffer = new byte[65536];
+                int count;
+                while ((count = input.read(buffer)) != -1) {
+                    output.write(buffer, 0, count);
+                }
+            }
+        } finally {
+            tempVideo.delete();
+        }
     }
 }
