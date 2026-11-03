@@ -928,6 +928,7 @@ public class MainActivity extends AppCompatActivity implements SavedFacesAdapter
             Toast.makeText(this, "Select source face and video; wait for models", Toast.LENGTH_LONG).show();
             return;
         }
+        showOverlay("G Swap - Video", "Preparing video...");
         Toast.makeText(this, "Preparing video...", Toast.LENGTH_SHORT).show();
         executorService.execute(() -> {
             try {
@@ -936,11 +937,16 @@ public class MainActivity extends AppCompatActivity implements SavedFacesAdapter
                 Uri outputUri = createOutputVideoUri();
                 if (outputUri == null) throw new java.io.IOException("Cannot create output video");
                 runOnUiThread(() -> Toast.makeText(this, "Video engine started", Toast.LENGTH_LONG).show());
-                new VideoProcessor(this, processor).processVideo(selectedVideoUri, outputUri, embedding);
+                VideoProcessor videoProcessor = new VideoProcessor(this, processor);
+                videoProcessor.setProgressListener((percent, stage) -> runOnUiThread(() -> updateOverlay(stage, percent)));
+                videoProcessor.processVideo(selectedVideoUri, outputUri, embedding);
 
                 runOnUiThread(() -> Toast.makeText(this, "Video saved in Movies/GSwap", Toast.LENGTH_SHORT).show());
             } catch (Exception e) {
                 runOnUiThread(() -> Toast.makeText(this, "Video error: " + e.toString(), Toast.LENGTH_LONG).show());
+            }
+        } finally {
+                runOnUiThread(this::hideOverlay);
             }
         });
     }

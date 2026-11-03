@@ -1,3 +1,4 @@
+
 package com.pv.androidfacefusion;
 
 import android.content.Context;
@@ -17,6 +18,10 @@ import android.media.MediaCodecList;
 import java.nio.ByteBuffer;
 
 public class VideoProcessor {
+    public interface ProgressListener { void onProgress(int percent, String stage); }
+    private ProgressListener progressListener;
+    public void setProgressListener(ProgressListener listener) { this.progressListener = listener; }
+    private void reportProgress(int percent, String stage) { if (progressListener != null) progressListener.onProgress(percent, stage); }
 
     private final Context context;
     private final FaceFusionProcessor faceProcessor;
@@ -36,6 +41,7 @@ public class VideoProcessor {
             String rotationValue = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION);
             int rotation = rotationValue == null ? 0 : Integer.parseInt(rotationValue);
             return new VideoInfo(width, height, durationUs, rotation);
+            reportProgress(100, "Video saved");
         } finally {
             try { r.release(); } catch (java.io.IOException e) { android.util.Log.e("GSwap", "Video metadata release failed", e); }
         }
@@ -63,6 +69,7 @@ public class VideoProcessor {
         if (sourceEmbedding == null || sourceEmbedding.length == 0)
             throw new IllegalArgumentException("Source face missing");
         VideoInfo info = getVideoInfo(inputVideo);
+        reportProgress(0, "Preparing video");
         int width = Math.max(2, (info.width / 2) * 2);
         int height = Math.max(2, (info.height / 2) * 2);
         int fps = 10;
@@ -81,6 +88,7 @@ public class VideoProcessor {
                         try {
                             encoder.addFrame(result);
                         android.util.Log.i("GSwapVideo", "Frame encoded at " + timeUs + " us");
+                        reportProgress(Math.min(95, (int) ((timeUs + frameStepUs) * 95L / Math.max(1L, info.durationUs))), "Processing frames");
                         } finally {
                             if (result != frame) result.recycle();
                         }
@@ -98,7 +106,7 @@ public class VideoProcessor {
                 while ((count = input.read(buffer)) != -1) {
                     output.write(buffer, 0, count);
                 }
-            }
+            reportProgress(100, "Video saved");
         } finally {
             tempVideo.delete();
         }
