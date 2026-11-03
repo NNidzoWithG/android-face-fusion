@@ -72,12 +72,15 @@ public class VideoProcessor {
             try (VideoEncoder encoder = new VideoEncoder(
                     tempVideo.getAbsolutePath(), width, height, fps)) {
                 for (long timeUs = 0; timeUs < info.durationUs; timeUs += frameStepUs) {
+                android.util.Log.i("GSwapVideo", "Extracting frame at " + timeUs + " us");
                     Bitmap frame = extractFrame(inputVideo, timeUs);
                     if (frame == null) continue;
                     try {
                         Bitmap result = swapVideoFrame(frame, sourceEmbedding);
+                    android.util.Log.i("GSwapVideo", "Face swap completed at " + timeUs + " us");
                         try {
                             encoder.addFrame(result);
+                        android.util.Log.i("GSwapVideo", "Frame encoded at " + timeUs + " us");
                         } finally {
                             if (result != frame) result.recycle();
                         }
