@@ -4,6 +4,13 @@ import android.content.Context;
 import android.net.Uri;
 import android.graphics.Bitmap;
 import android.media.MediaMetadataRetriever;
+import android.media.MediaCodec;
+import android.media.MediaCodecInfo;
+import android.media.MediaFormat;
+import android.media.MediaMuxer;
+import android.media.MediaExtractor;
+import android.media.MediaCodecList;
+import java.nio.ByteBuffer;
 
 public class VideoProcessor {
 
