@@ -944,8 +944,7 @@ public class MainActivity extends AppCompatActivity implements SavedFacesAdapter
                 runOnUiThread(() -> Toast.makeText(this, "Video saved in Movies/GSwap", Toast.LENGTH_SHORT).show());
             } catch (Exception e) {
                 runOnUiThread(() -> Toast.makeText(this, "Video error: " + e.toString(), Toast.LENGTH_LONG).show());
-            }
-        } finally {
+                 } finally {
                 runOnUiThread(this::hideOverlay);
             }
         });

@@ -41,7 +41,6 @@ public class VideoProcessor {
             String rotationValue = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION);
             int rotation = rotationValue == null ? 0 : Integer.parseInt(rotationValue);
             return new VideoInfo(width, height, durationUs, rotation);
-            reportProgress(100, "Video saved");
         } finally {
             try { r.release(); } catch (java.io.IOException e) { android.util.Log.e("GSwap", "Video metadata release failed", e); }
         }
@@ -106,6 +105,7 @@ public class VideoProcessor {
                 while ((count = input.read(buffer)) != -1) {
                     output.write(buffer, 0, count);
                 }
+            }
             reportProgress(100, "Video saved");
         } finally {
             tempVideo.delete();
