@@ -166,7 +166,7 @@ public class MainActivity extends AppCompatActivity implements SavedFacesAdapter
         btnSelectTargetUrl = findViewById(R.id.btnSelectTargetUrl);
         btnProcess = findViewById(R.id.btnProcess);
         btnReset = findViewById(R.id.btnReset);
-        findViewById(R.id.btnProcessVideo).setOnClickListener(v -> android.widget.Toast.makeText(this, "Video processing: test", android.widget.Toast.LENGTH_SHORT).show());
+        findViewById(R.id.btnProcessVideo).setOnClickListener(v -> processSelectedVideo());
         findViewById(R.id.btnSelectVideo).setOnClickListener(v -> { Intent intent = new Intent(Intent.ACTION_GET_CONTENT); intent.setType("video/*"); videoPickerLauncher.launch(intent); });
 
         // Library Views
