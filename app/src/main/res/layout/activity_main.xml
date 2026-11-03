@@ -262,6 +262,21 @@
                     android:layout_marginBottom="8dp" />
 
                 <com.google.android.material.button.MaterialButton
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnSelectVideo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Select Video"
+                    android:layout_marginBottom="8dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnProcessVideo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Swap Video Faces"
+                    android:layout_marginBottom="8dp" />
+
+        <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnReset"
                     style="@style/Widget.Material3.Button.OutlinedButton"
                     android:layout_width="match_parent"
