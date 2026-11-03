@@ -932,8 +932,10 @@ public class MainActivity extends AppCompatActivity implements SavedFacesAdapter
         executorService.execute(() -> {
             try {
                 float[] embedding = processor.extractSourceEmbedding(sourceBitmap);
+                runOnUiThread(() -> Toast.makeText(this, "Face extracted - starting video", Toast.LENGTH_LONG).show());
                 Uri outputUri = createOutputVideoUri();
                 if (outputUri == null) throw new java.io.IOException("Cannot create output video");
+                runOnUiThread(() -> Toast.makeText(this, "Video engine started", Toast.LENGTH_LONG).show());
                 new VideoProcessor(this, processor).processVideo(selectedVideoUri, outputUri, embedding);
 
                 runOnUiThread(() -> Toast.makeText(this, "Video saved in Movies/GSwap", Toast.LENGTH_SHORT).show());
