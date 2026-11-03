@@ -211,6 +211,17 @@ public class FaceFusionProcessor {
     /**
      * Detect faces in target image
      */
+    public float[] extractSourceEmbedding(Bitmap sourceImage) throws Exception {
+        List<FaceDetector.Face> faces = faceDetector.detectFaces(sourceImage);
+        if (faces.isEmpty()) throw new Exception("No source face detected");
+        Bitmap aligned = ImageUtils.alignFace(sourceImage, faces.get(0).landmarks, 112);
+        try {
+            return faceEmbedder.getEmbedding(aligned);
+        } finally {
+            aligned.recycle();
+        }
+    }
+
     public List<FaceDetector.Face> detectTargetFaces(Bitmap targetImage) throws Exception {
         return faceDetector.detectFaces(targetImage);
     }

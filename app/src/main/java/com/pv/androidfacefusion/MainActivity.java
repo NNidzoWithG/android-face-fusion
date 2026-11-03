@@ -915,6 +915,34 @@ public class MainActivity extends AppCompatActivity implements SavedFacesAdapter
         });
     }
 
+    private Uri createOutputVideoUri() {
+        android.content.ContentValues values = new android.content.ContentValues();
+        values.put(android.provider.MediaStore.Video.Media.DISPLAY_NAME, "GSwap_" + System.currentTimeMillis() + ".mp4");
+        values.put(android.provider.MediaStore.Video.Media.MIME_TYPE, "video/mp4");
+        values.put(android.provider.MediaStore.Video.Media.RELATIVE_PATH, "Movies/GSwap");
+        return getContentResolver().insert(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values);
+    }
+
+    private void processSelectedVideo() {
+        if (selectedVideoUri == null || sourceBitmap == null || processor == null) {
+            Toast.makeText(this, "Select source face and video; wait for models", Toast.LENGTH_LONG).show();
+            return;
+        }
+        Toast.makeText(this, "Preparing video...", Toast.LENGTH_SHORT).show();
+        executorService.execute(() -> {
+            try {
+                float[] embedding = processor.extractSourceEmbedding(sourceBitmap);
+                Uri outputUri = createOutputVideoUri();
+                if (outputUri == null) throw new java.io.IOException("Cannot create output video");
+                new VideoProcessor(this, processor).processVideo(selectedVideoUri, outputUri, embedding);
+
+                runOnUiThread(() -> Toast.makeText(this, "Video saved in Movies/GSwap", Toast.LENGTH_SHORT).show());
+            } catch (Exception e) {
+                runOnUiThread(() -> Toast.makeText(this, "Video error: " + e.getMessage(), Toast.LENGTH_LONG).show());
+            }
+        });
+    }
+
     private void processFaceFusion() {
         if (sourceBitmap == null || targetBitmap == null) {
             Toast.makeText(this, "Please select both source and target images",
