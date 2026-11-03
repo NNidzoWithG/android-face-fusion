@@ -15,6 +15,21 @@ public class VideoProcessor {
         this.faceProcessor = faceProcessor;
     }
 
+    public VideoInfo getVideoInfo(Uri videoUri) {
+        MediaMetadataRetriever r = new MediaMetadataRetriever();
+        try {
+            r.setDataSource(context, videoUri);
+            int width = Integer.parseInt(r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH));
+            int height = Integer.parseInt(r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT));
+            long durationUs = Long.parseLong(r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)) * 1000L;
+            String rotationValue = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION);
+            int rotation = rotationValue == null ? 0 : Integer.parseInt(rotationValue);
+            return new VideoInfo(width, height, durationUs, rotation);
+        } finally {
+            r.release();
+        }
+    }
+
     public Bitmap extractFrame(Uri videoUri, long timeUs) {
         MediaMetadataRetriever retriever = new MediaMetadataRetriever();
         try {
