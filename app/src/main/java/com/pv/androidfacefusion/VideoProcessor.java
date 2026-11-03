@@ -26,7 +26,7 @@ public class VideoProcessor {
             int rotation = rotationValue == null ? 0 : Integer.parseInt(rotationValue);
             return new VideoInfo(width, height, durationUs, rotation);
         } finally {
-            r.release();
+            try { r.release(); } catch (java.io.IOException e) { android.util.Log.e("GSwap", "Video metadata release failed", e); }
         }
     }
 
@@ -38,7 +38,7 @@ public class VideoProcessor {
                 timeUs, MediaMetadataRetriever.OPTION_CLOSEST
             );
         } finally {
-            retriever.release();
+            try { retriever.release(); } catch (java.io.IOException e) { android.util.Log.e("GSwap", "Video frame release failed", e); }
         }
     }
 
