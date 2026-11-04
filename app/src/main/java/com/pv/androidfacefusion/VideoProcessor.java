@@ -97,14 +97,20 @@ public class VideoProcessor {
                 }
                 encoder.finish();
             }
-            try (FileInputStream input = new FileInputStream(tempVideo);
-                 OutputStream output = context.getContentResolver().openOutputStream(outputVideo, "w")) {
+            File finalVideo = File.createTempFile("gswap_final_", ".mp4", context.getCacheDir());
+            try {
+                AudioMuxer.merge(context, tempVideo, inputVideo, finalVideo);
+                try (FileInputStream input = new FileInputStream(finalVideo);
+                     OutputStream output = context.getContentResolver().openOutputStream(outputVideo, "w")) {
                 if (output == null) throw new java.io.IOException("Cannot open output video");
                 byte[] buffer = new byte[65536];
                 int count;
                 while ((count = input.read(buffer)) != -1) {
                     output.write(buffer, 0, count);
                 }
+            }
+            } finally {
+                finalVideo.delete();
             }
             reportProgress(100, "Video saved");
         } finally {
