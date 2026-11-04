@@ -59,9 +59,7 @@ public class VideoProcessor {
     }
 
     public Bitmap swapVideoFrame(Bitmap frame, float[] sourceEmbedding) throws Exception {
-        java.util.Map<Integer, float[]> mapping = new java.util.HashMap<>();
-        mapping.put(0, sourceEmbedding);
-        return faceProcessor.processFaceFusionWithMapping(frame, mapping);
+        return faceProcessor.processVideoFaceFusion(frame, sourceEmbedding);
     }
 
     public void processVideo(Uri inputVideo, Uri outputVideo, float[] sourceEmbedding) throws Exception {

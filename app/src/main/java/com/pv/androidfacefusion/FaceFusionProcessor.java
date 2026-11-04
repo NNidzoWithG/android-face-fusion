@@ -90,6 +90,40 @@ public class FaceFusionProcessor {
     /**
      * Process face fusion where each target face index is mapped to a specific library face embedding
      */
+
+    public Bitmap processVideoFaceFusion(Bitmap frame, float[] sourceEmbedding) throws Exception {
+        List<FaceDetector.Face> faces = faceDetector.detectFaces(frame);
+
+        if (faces.isEmpty()) {
+            throw new Exception("No face detected in video frame.");
+        }
+
+        FaceDetector.Face largest = faces.get(0);
+        float largestArea = 0;
+
+        for (FaceDetector.Face face : faces) {
+            float area = face.bbox.width() * face.bbox.height();
+            if (area > largestArea) {
+                largestArea = area;
+                largest = face;
+            }
+        }
+
+        Log.d(TAG, "Video selected largest face: bbox="
+                + largest.bbox + ", score=" + largest.score);
+
+        Bitmap aligned = ImageUtils.alignFace(frame, largest.landmarks, 128);
+        Bitmap swapped = null;
+
+        try {
+            swapped = faceSwapper.swapFace(aligned, sourceEmbedding, frame);
+            return ImageUtils.blendFaces(frame, swapped, largest.landmarks, 128);
+        } finally {
+            aligned.recycle();
+            if (swapped != null) swapped.recycle();
+        }
+    }
+
     public Bitmap processFaceFusionWithMapping(Bitmap targetImage, Map<Integer, float[]> targetIndexToEmbeddingMap) throws Exception {
         if (targetIndexToEmbeddingMap == null || targetIndexToEmbeddingMap.isEmpty()) {
             throw new Exception("No target face mappings selected.");
