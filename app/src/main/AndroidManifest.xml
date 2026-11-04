@@ -11,6 +11,10 @@
         android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:allowBackup="true"
         android:largeHeap="true"
@@ -22,6 +26,11 @@
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.AndroidFaceFusion">
+        <service
+            android:name=".VideoProcessingService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProcessing" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

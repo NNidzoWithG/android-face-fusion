@@ -167,7 +167,7 @@ public class MainActivity extends AppCompatActivity implements SavedFacesAdapter
         btnProcess = findViewById(R.id.btnProcess);
         btnReset = findViewById(R.id.btnReset);
         findViewById(R.id.btnProcessVideo).setOnClickListener(v -> processSelectedVideo());
-        findViewById(R.id.btnSelectVideo).setOnClickListener(v -> { Intent intent = new Intent(Intent.ACTION_GET_CONTENT); intent.setType("video/*"); videoPickerLauncher.launch(intent); });
+        findViewById(R.id.btnSelectVideo).setOnClickListener(v -> { Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT); intent.addCategory(Intent.CATEGORY_OPENABLE); intent.setType("video/*"); intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION); videoPickerLauncher.launch(intent); });
 
         // Library Views
         btnAddSavedFace = findViewById(R.id.btnAddSavedFace);
@@ -223,6 +223,13 @@ public class MainActivity extends AppCompatActivity implements SavedFacesAdapter
                             && result.getData() != null) {
                         selectedVideoUri = result.getData().getData();
                         if (selectedVideoUri != null) {
+                            try {
+                                getContentResolver().takePersistableUriPermission(
+                                        selectedVideoUri,
+                                        Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                            } catch (SecurityException e) {
+                                android.util.Log.w("GSwap", "Could not persist video URI permission", e);
+                            }
                             android.widget.Toast.makeText(this,
                                     "Video selected",
                                     android.widget.Toast.LENGTH_SHORT).show();
@@ -925,29 +932,83 @@ public class MainActivity extends AppCompatActivity implements SavedFacesAdapter
 
     private void processSelectedVideo() {
         if (selectedVideoUri == null || sourceBitmap == null || processor == null) {
-            Toast.makeText(this, "Select source face and video; wait for models", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Select source face and video; wait for models",
+                    Toast.LENGTH_LONG).show();
             return;
         }
-        showOverlay("G Swap - Video", "Preparing video...");
-        Toast.makeText(this, "Preparing video...", Toast.LENGTH_SHORT).show();
-        executorService.execute(() -> {
-            try {
-                float[] embedding = processor.extractSourceEmbedding(sourceBitmap);
-                runOnUiThread(() -> Toast.makeText(this, "Face extracted - starting video", Toast.LENGTH_LONG).show());
-                Uri outputUri = createOutputVideoUri();
-                if (outputUri == null) throw new java.io.IOException("Cannot create output video");
-                runOnUiThread(() -> Toast.makeText(this, "Video engine started", Toast.LENGTH_LONG).show());
-                VideoProcessor videoProcessor = new VideoProcessor(this, processor);
-                videoProcessor.setProgressListener((percent, stage) -> runOnUiThread(() -> updateOverlay(stage, percent)));
-                videoProcessor.processVideo(selectedVideoUri, outputUri, embedding);
 
-                runOnUiThread(() -> Toast.makeText(this, "Video saved in Movies/GSwap", Toast.LENGTH_SHORT).show());
-            } catch (Exception e) {
-                runOnUiThread(() -> Toast.makeText(this, "Video error: " + e.toString(), Toast.LENGTH_LONG).show());
-                 } finally {
-                runOnUiThread(this::hideOverlay);
-            }
-        });
+        View processButton = findViewById(R.id.btnProcessVideo);
+        if (!processButton.isEnabled()) {
+            return;
+        }
+
+        processButton.setEnabled(false);
+        showOverlay("G Swap - Video", "Preparing source face...");
+
+        final Uri inputUri = selectedVideoUri;
+        final Bitmap source = sourceBitmap;
+        final FaceFusionProcessor sourceProcessor = processor;
+
+        try {
+            executorService.execute(() -> {
+                try {
+                    float[] embedding = sourceProcessor.extractSourceEmbedding(source);
+
+                    Intent serviceIntent = new Intent(
+                            MainActivity.this,
+                            VideoProcessingService.class
+                    );
+                    serviceIntent.putExtra(
+                            VideoProcessingService.EXTRA_INPUT_URI,
+                            inputUri.toString()
+                    );
+                    serviceIntent.putExtra(
+                            VideoProcessingService.EXTRA_EMBEDDING,
+                            embedding
+                    );
+
+                    runOnUiThread(() -> {
+                        try {
+                            ContextCompat.startForegroundService(
+                                    MainActivity.this, serviceIntent
+                            );
+                            Toast.makeText(
+                                    MainActivity.this,
+                                    "Video processing requested",
+                                    Toast.LENGTH_LONG
+                            ).show();
+                        } catch (Exception e) {
+                            Log.e(TAG, "Foreground service start failed", e);
+                            Toast.makeText(
+                                    MainActivity.this,
+                                    "Cannot start video service: " + e.getMessage(),
+                                    Toast.LENGTH_LONG
+                            ).show();
+                        } finally {
+                            hideOverlay();
+                            processButton.setEnabled(true);
+                        }
+                    });
+                } catch (Exception e) {
+                    Log.e(TAG, "Cannot prepare video processing", e);
+                    runOnUiThread(() -> {
+                        hideOverlay();
+                        processButton.setEnabled(true);
+                        Toast.makeText(
+                                MainActivity.this,
+                                "Video error: " + e.getMessage(),
+                                Toast.LENGTH_LONG
+                        ).show();
+                    });
+                }
+            });
+        } catch (Exception e) {
+            hideOverlay();
+            processButton.setEnabled(true);
+            Log.e(TAG, "Cannot schedule video processing", e);
+            Toast.makeText(this, "Video error: " + e.getMessage(),
+                    Toast.LENGTH_LONG).show();
+        }
     }
 
     private void processFaceFusion() {
@@ -1130,9 +1191,11 @@ public class MainActivity extends AppCompatActivity implements SavedFacesAdapter
     }
 
     private void requestPermissions() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.INTERNET)
-            != PackageManager.PERMISSION_GRANTED) {
-            permissionLauncher.launch(Manifest.permission.INTERNET);
+        if (android.os.Build.VERSION.SDK_INT >= 33
+                && ContextCompat.checkSelfPermission(
+                        this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
         }
     }
 
