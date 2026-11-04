@@ -76,7 +76,8 @@ public class MainActivity extends AppCompatActivity implements SavedFacesAdapter
     private LinearLayout standardSwapContainer, librarySwapContainer;
 
     // Standard Swap Views
-    private ImageView sourceImageView, resultImageView;
+    private FaceOverlayImageView sourceImageView;
+    private ImageView resultImageView;
     private FaceOverlayImageView targetImageView;
     private HorizontalScrollView targetFaceChipScrollView;
     private ChipGroup targetFaceChipGroup;
@@ -156,6 +157,7 @@ public class MainActivity extends AppCompatActivity implements SavedFacesAdapter
 
         // Standard Swap Views
         sourceImageView = findViewById(R.id.sourceImageView);
+        sourceImageView.setSingleFaceSelection(true);
         targetImageView = findViewById(R.id.targetImageView);
         targetFaceChipScrollView = findViewById(R.id.targetFaceChipScrollView);
         targetFaceChipGroup = findViewById(R.id.targetFaceChipGroup);
@@ -444,7 +446,13 @@ public class MainActivity extends AppCompatActivity implements SavedFacesAdapter
         btnSaveResult.setOnClickListener(v -> saveResult());
         btnShareResult.setOnClickListener(v -> shareResult());
 
-        sourceImageView.setOnClickListener(v -> openImagePreview(sourceBitmap));
+        sourceImageView.setOnLongClickListener(v -> {
+            if (sourceBitmap != null) {
+                openImagePreview(sourceBitmap);
+                return true;
+            }
+            return false;
+        });
         resultImageView.setOnClickListener(v -> openImagePreview(resultBitmap));
         targetImageView.setOnFaceSelectedListener(selectedIndices -> syncChipsWithOverlay());
     }
@@ -461,6 +469,7 @@ public class MainActivity extends AppCompatActivity implements SavedFacesAdapter
         if (resultBitmap != null) { resultBitmap.recycle(); resultBitmap = null; }
 
         sourceImageView.setImageDrawable(null);
+        sourceImageView.setFaces(null);
         targetImageView.setImageDrawable(null);
         targetImageView.setFaces(null);
         targetFacesList.clear();
@@ -601,6 +610,8 @@ public class MainActivity extends AppCompatActivity implements SavedFacesAdapter
             case STANDARD_SOURCE:
                 sourceBitmap = bitmap;
                 sourceImageView.setImageBitmap(bitmap);
+                sourceImageView.setFaces(new ArrayList<>());
+                detectSourceFacesAsync(bitmap);
                 break;
             case STANDARD_TARGET:
                 targetBitmap = bitmap;
@@ -782,6 +793,23 @@ public class MainActivity extends AppCompatActivity implements SavedFacesAdapter
             .show();
     }
 
+    private void detectSourceFacesAsync(Bitmap bitmap) {
+        if (faceDetector == null || bitmap == null) return;
+
+        executorService.execute(() -> {
+            try {
+                List<FaceDetector.Face> faces = faceDetector.detectFaces(bitmap);
+                runOnUiThread(() -> {
+                    if (sourceBitmap == bitmap) {
+                        sourceImageView.setFaces(faces);
+                    }
+                });
+            } catch (Exception e) {
+                Log.e(TAG, "Error detecting source faces", e);
+            }
+        });
+    }
+
     private void detectTargetFacesAsync(Bitmap bitmap) {
         if (faceDetector == null || bitmap == null) return;
         executorService.execute(() -> {
@@ -926,7 +954,7 @@ public class MainActivity extends AppCompatActivity implements SavedFacesAdapter
         android.content.ContentValues values = new android.content.ContentValues();
         values.put(android.provider.MediaStore.Video.Media.DISPLAY_NAME, "GSwap_" + System.currentTimeMillis() + ".mp4");
         values.put(android.provider.MediaStore.Video.Media.MIME_TYPE, "video/mp4");
-        values.put(android.provider.MediaStore.Video.Media.RELATIVE_PATH, "Movies/GSwap");
+        values.put(android.provider.MediaStore.Video.Media.RELATIVE_PATH, "Movies/GSwap/Videos");
         return getContentResolver().insert(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values);
     }
 
@@ -949,10 +977,37 @@ public class MainActivity extends AppCompatActivity implements SavedFacesAdapter
         final Bitmap source = sourceBitmap;
         final FaceFusionProcessor sourceProcessor = processor;
 
+        final List<FaceDetector.Face> sourceFaces =
+                new ArrayList<>(sourceImageView.getFaces());
+        final Set<Integer> sourceSelection =
+                new java.util.HashSet<>(sourceImageView.getSelectedFaceIndices());
+
+        if (sourceSelection.size() != 1 || sourceFaces.isEmpty()) {
+            hideOverlay();
+            processButton.setEnabled(true);
+            Toast.makeText(this, "Please select one source face",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        final int sourceIndex = sourceSelection.iterator().next();
+
+        if (sourceIndex < 0 || sourceIndex >= sourceFaces.size()) {
+            hideOverlay();
+            processButton.setEnabled(true);
+            Toast.makeText(this, "Invalid source face selection",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        final FaceDetector.Face selectedSourceFace =
+                sourceFaces.get(sourceIndex);
+
         try {
             executorService.execute(() -> {
                 try {
-                    float[] embedding = sourceProcessor.extractSourceEmbedding(source);
+                    float[] embedding = sourceProcessor.extractSourceEmbedding(
+                            source, selectedSourceFace);
 
                     Intent serviceIntent = new Intent(
                             MainActivity.this,
@@ -1031,6 +1086,31 @@ public class MainActivity extends AppCompatActivity implements SavedFacesAdapter
             return;
         }
 
+        final Bitmap selectedSourceImage = sourceBitmap;
+        final Bitmap selectedTargetImage = targetBitmap;
+        final List<FaceDetector.Face> sourceFaces =
+                new ArrayList<>(sourceImageView.getFaces());
+        final Set<Integer> sourceSelection =
+                new java.util.HashSet<>(sourceImageView.getSelectedFaceIndices());
+        final Set<Integer> targetSelection =
+                new java.util.HashSet<>(selectedFaceIndices);
+
+        if (sourceSelection.size() != 1 || sourceFaces.isEmpty()) {
+            Toast.makeText(this, "Please select one source face",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        final int sourceIndex = sourceSelection.iterator().next();
+
+        if (sourceIndex < 0 || sourceIndex >= sourceFaces.size()) {
+            Toast.makeText(this, "Invalid source face selection",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        final FaceDetector.Face selectedSourceFace = sourceFaces.get(sourceIndex);
+
         btnProcess.setEnabled(false);
         resultCard.setVisibility(View.GONE);
         showOverlay("Swapping Faces", "Processing face swap...");
@@ -1038,7 +1118,12 @@ public class MainActivity extends AppCompatActivity implements SavedFacesAdapter
         executorService.execute(() -> {
             try {
                 runOnUiThread(() -> updateOverlay("Processing face swap...", -1));
-                Bitmap result = processor.processFaceFusion(sourceBitmap, targetBitmap, selectedFaceIndices);
+
+                float[] sourceEmbedding = processor.extractSourceEmbedding(
+                        selectedSourceImage, selectedSourceFace);
+
+                Bitmap result = processor.processFaceFusion(
+                        selectedTargetImage, sourceEmbedding, targetSelection);
                 resultBitmap = result;
 
                 runOnUiThread(() -> {
@@ -1138,7 +1223,7 @@ public class MainActivity extends AppCompatActivity implements SavedFacesAdapter
                 ContentValues values = new ContentValues();
                 values.put(MediaStore.Images.Media.DISPLAY_NAME, fileName);
                 values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
-                values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES);
+                values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/GSwap/Images");
 
                 Uri uri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
                 if (uri != null) {

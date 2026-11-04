@@ -35,6 +35,52 @@ public class FaceFusionProcessor {
     /**
      * Process face fusion for selected target face indices (multi-selection)
      */
+    public Bitmap processFaceFusion(
+            Bitmap targetImage,
+            float[] sourceEmbedding,
+            Set<Integer> selectedFaceIndices) throws Exception {
+
+        if (sourceEmbedding == null || sourceEmbedding.length == 0) {
+            throw new Exception("Source face embedding is missing");
+        }
+
+        if (selectedFaceIndices == null || selectedFaceIndices.isEmpty()) {
+            throw new Exception("No target faces selected");
+        }
+
+        List<FaceDetector.Face> targetFaces = faceDetector.detectFaces(targetImage);
+
+        if (targetFaces.isEmpty()) {
+            throw new Exception("No face detected in target image");
+        }
+
+        Bitmap result = targetImage.copy(Bitmap.Config.ARGB_8888, true);
+
+        for (int i = 0; i < targetFaces.size(); i++) {
+            if (!selectedFaceIndices.contains(i)) continue;
+
+            FaceDetector.Face targetFace = targetFaces.get(i);
+            Bitmap aligned = ImageUtils.alignFace(result, targetFace.landmarks, 128);
+
+            try {
+                Bitmap swapped = faceSwapper.swapFace(aligned, sourceEmbedding, result);
+                try {
+                    Bitmap blended = ImageUtils.blendFaces(
+                            result, swapped, targetFace.landmarks, 128
+                    );
+                    result.recycle();
+                    result = blended;
+                } finally {
+                    swapped.recycle();
+                }
+            } finally {
+                aligned.recycle();
+            }
+        }
+
+        return result;
+    }
+
     public Bitmap processFaceFusion(Bitmap sourceImage, Bitmap targetImage, Set<Integer> selectedFaceIndices) throws Exception {
         if (selectedFaceIndices == null || selectedFaceIndices.isEmpty()) {
             return processFaceFusionMultiple(sourceImage, targetImage);
@@ -245,6 +291,25 @@ public class FaceFusionProcessor {
     /**
      * Detect faces in target image
      */
+    public float[] extractSourceEmbedding(
+            Bitmap sourceImage,
+            FaceDetector.Face selectedFace) throws Exception {
+
+        if (sourceImage == null || selectedFace == null) {
+            throw new Exception("Source image or selected face is missing");
+        }
+
+        Bitmap aligned = ImageUtils.alignFace(
+                sourceImage, selectedFace.landmarks, 112
+        );
+
+        try {
+            return faceEmbedder.getEmbedding(aligned);
+        } finally {
+            aligned.recycle();
+        }
+    }
+
     public float[] extractSourceEmbedding(Bitmap sourceImage) throws Exception {
         List<FaceDetector.Face> faces = faceDetector.detectFaces(sourceImage);
         if (faces.isEmpty()) throw new Exception("No source face detected");

@@ -136,7 +136,7 @@ public class VideoProcessingService extends Service {
         values.put(MediaStore.Video.Media.MIME_TYPE, "video/mp4");
         values.put(
                 MediaStore.Video.Media.RELATIVE_PATH,
-                "Movies/GSwap"
+                "Movies/GSwap/Videos"
         );
 
         if (Build.VERSION.SDK_INT >= 29) {

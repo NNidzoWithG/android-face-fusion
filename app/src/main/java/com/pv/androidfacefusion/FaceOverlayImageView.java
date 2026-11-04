@@ -6,11 +6,9 @@ import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.util.AttributeSet;
-import android.view.MotionEvent;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.appcompat.widget.AppCompatImageView;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -20,7 +18,7 @@ import java.util.Set;
 /**
  * Interactive ImageView that highlights detected faces and allows user to tap to select face(s).
  */
-public class FaceOverlayImageView extends AppCompatImageView {
+public class FaceOverlayImageView extends ZoomableImageView {
 
     public interface OnFaceSelectedListener {
         void onFaceSelectionChanged(Set<Integer> selectedIndices);
@@ -29,6 +27,14 @@ public class FaceOverlayImageView extends AppCompatImageView {
     private List<FaceDetector.Face> faces = new ArrayList<>();
     private Set<Integer> selectedFaceIndices = new HashSet<>();
     private OnFaceSelectedListener listener;
+    private boolean singleFaceSelection = false;
+
+    public void setSingleFaceSelection(boolean enabled) {
+        singleFaceSelection = enabled;
+        if (enabled && !faces.isEmpty()) {
+            setSelectedFaceIndex(0);
+        }
+    }
 
     private Paint boxSelectedPaint;
     private Paint boxUnselectedPaint;
@@ -55,6 +61,7 @@ public class FaceOverlayImageView extends AppCompatImageView {
 
     private void init() {
         density = getResources().getDisplayMetrics().density;
+
 
         // Selected face bounding box paint (bright cyan accent)
         boxSelectedPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -92,7 +99,8 @@ public class FaceOverlayImageView extends AppCompatImageView {
         this.faces = (detectedFaces != null) ? detectedFaces : new ArrayList<>();
         this.selectedFaceIndices.clear();
         for (int i = 0; i < this.faces.size(); i++) {
-            this.selectedFaceIndices.add(i); // Default to selecting all faces
+            if (singleFaceSelection && i > 0) break;
+            this.selectedFaceIndices.add(i);
         }
         invalidate();
     }
@@ -193,31 +201,16 @@ public class FaceOverlayImageView extends AppCompatImageView {
         }
     }
 
-    private float downX, downY;
-
-    @Override
-    public boolean onTouchEvent(MotionEvent event) {
-        switch (event.getAction()) {
-            case MotionEvent.ACTION_DOWN:
-                downX = event.getX();
-                downY = event.getY();
-                return true;
-
-            case MotionEvent.ACTION_UP:
-                float dx = Math.abs(event.getX() - downX);
-                float dy = Math.abs(event.getY() - downY);
-                // Touch threshold for tap vs scroll
-                if (dx < 10 * density && dy < 10 * density) {
-                    handleTap(event.getX(), event.getY());
-                }
-                return performClick();
-        }
-        return super.onTouchEvent(event);
-    }
 
     @Override
     public boolean performClick() {
         return super.performClick();
+    }
+
+    @Override
+    protected void onImageSingleTap(float x, float y) {
+        handleTap(x, y);
+        performClick();
     }
 
     private void handleTap(float touchX, float touchY) {
@@ -234,7 +227,11 @@ public class FaceOverlayImageView extends AppCompatImageView {
 
             for (int i = 0; i < faces.size(); i++) {
                 if (faces.get(i).bbox.contains(bmpX, bmpY)) {
-                    toggleFaceIndex(i);
+                    if (singleFaceSelection) {
+                        setSelectedFaceIndex(i);
+                    } else {
+                        toggleFaceIndex(i);
+                    }
                     if (listener != null) {
                         listener.onFaceSelectionChanged(selectedFaceIndices);
                     }

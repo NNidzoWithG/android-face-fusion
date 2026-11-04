@@ -64,24 +64,48 @@ public class ZoomableImageView extends AppCompatImageView {
             }
         });
 
-        gestureDetector = new GestureDetector(context, new GestureDetector.SimpleOnGestureListener() {
-            @Override
-            public boolean onDoubleTap(MotionEvent e) {
-                if (currentScale > 1.1f) {
-                    // Reset to fit
-                    resetToFit();
-                } else {
-                    // Zoom to 3x at tap point
-                    float targetScale = 3.0f;
-                    float scaleFactor = targetScale / currentScale;
-                    matrix.postScale(scaleFactor, scaleFactor, e.getX(), e.getY());
-                    currentScale = targetScale;
-                    clampTranslation();
-                    setImageMatrix(matrix);
+        gestureDetector = new GestureDetector(context,
+            new GestureDetector.SimpleOnGestureListener() {
+                @Override
+                public boolean onDown(MotionEvent e) {
+                    return true;
                 }
-                return true;
-            }
-        });
+
+                @Override
+                public boolean onSingleTapConfirmed(MotionEvent e) {
+                    onImageSingleTap(e.getX(), e.getY());
+                    return true;
+                }
+
+                @Override
+                public void onLongPress(MotionEvent e) {
+                    performLongClick();
+                }
+
+                @Override
+                public boolean onDoubleTap(MotionEvent e) {
+                    if (currentScale > 1.1f) {
+                        resetToFit();
+                    } else {
+                        float factor = 3.0f / currentScale;
+                        matrix.postScale(factor, factor, e.getX(), e.getY());
+                        currentScale = 3.0f;
+                        clampTranslation();
+                        setImageMatrix(matrix);
+                    }
+                    return true;
+                }
+            });
+
+    }
+
+    protected void onImageSingleTap(float x, float y) {
+        performClick();
+    }
+
+    @Override
+    public boolean performClick() {
+        return super.performClick();
     }
 
     @Override
@@ -127,14 +151,42 @@ public class ZoomableImageView extends AppCompatImageView {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        scaleDetector.onTouchEvent(event);
-        gestureDetector.onTouchEvent(event);
+        int action = event.getActionMasked();
 
-        if (scaleDetector.isInProgress()) {
+        scaleDetector.onTouchEvent(event);
+
+        if (event.getPointerCount() > 1 || scaleDetector.isInProgress()) {
+            MotionEvent cancel = MotionEvent.obtain(event);
+            cancel.setAction(MotionEvent.ACTION_CANCEL);
+            gestureDetector.onTouchEvent(cancel);
+            cancel.recycle();
+
+            if (action == MotionEvent.ACTION_POINTER_DOWN) {
+                isPanning = false;
+            }
+
             return true;
         }
 
-        switch (event.getActionMasked()) {
+        if (action == MotionEvent.ACTION_POINTER_UP) {
+            int lifted = event.getActionIndex();
+            int remaining = lifted == 0 ? 1 : 0;
+
+            if (remaining < event.getPointerCount()) {
+                activePointerId = event.getPointerId(remaining);
+                lastTouch.set(
+                    event.getX(remaining),
+                    event.getY(remaining)
+                );
+            }
+
+            isPanning = false;
+            return true;
+        }
+
+        gestureDetector.onTouchEvent(event);
+
+        switch (action) {
             case MotionEvent.ACTION_DOWN:
                 activePointerId = event.getPointerId(0);
                 lastTouch.set(event.getX(), event.getY());
@@ -143,12 +195,16 @@ public class ZoomableImageView extends AppCompatImageView {
 
             case MotionEvent.ACTION_MOVE:
                 if (activePointerId != -1 && currentScale > 1.05f) {
-                    int pointerIndex = event.findPointerIndex(activePointerId);
-                    if (pointerIndex >= 0) {
-                        float dx = event.getX(pointerIndex) - lastTouch.x;
-                        float dy = event.getY(pointerIndex) - lastTouch.y;
+                    int index = event.findPointerIndex(activePointerId);
 
-                        if (!isPanning && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
+                    if (index >= 0) {
+                        float x = event.getX(index);
+                        float y = event.getY(index);
+                        float dx = x - lastTouch.x;
+                        float dy = y - lastTouch.y;
+
+                        if (!isPanning &&
+                            (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
                             isPanning = true;
                         }
 
@@ -156,8 +212,9 @@ public class ZoomableImageView extends AppCompatImageView {
                             matrix.postTranslate(dx, dy);
                             clampTranslation();
                             setImageMatrix(matrix);
-                            lastTouch.set(event.getX(pointerIndex), event.getY(pointerIndex));
                         }
+
+                        lastTouch.set(x, y);
                     }
                 }
                 break;
@@ -166,20 +223,6 @@ public class ZoomableImageView extends AppCompatImageView {
             case MotionEvent.ACTION_CANCEL:
                 activePointerId = -1;
                 isPanning = false;
-                break;
-
-            case MotionEvent.ACTION_POINTER_UP:
-                int pointerIndex = event.getActionIndex();
-                int pointerId = event.getPointerId(pointerIndex);
-                if (pointerId == activePointerId) {
-                    int newIndex = pointerIndex == 0 ? 1 : 0;
-                    if (newIndex < event.getPointerCount()) {
-                        activePointerId = event.getPointerId(newIndex);
-                        lastTouch.set(event.getX(newIndex), event.getY(newIndex));
-                    } else {
-                        activePointerId = -1;
-                    }
-                }
                 break;
         }
 

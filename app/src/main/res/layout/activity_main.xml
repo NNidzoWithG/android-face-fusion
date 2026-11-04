@@ -123,7 +123,7 @@
                             android:textStyle="bold"
                             android:layout_marginBottom="8dp" />
 
-                        <ImageView
+                        <com.pv.androidfacefusion.FaceOverlayImageView
                             android:id="@+id/sourceImageView"
                             android:layout_width="match_parent"
                             android:layout_height="200dp"
