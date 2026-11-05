@@ -48,7 +48,23 @@ public class FaceSwapper {
             Log.d(TAG, "Model file ready, size: " + modelFile.length() + " bytes");
             
             // Load with optimized multi-threaded CPU configuration
-            session = OrtSessionHelper.createSession(env, modelFile.getAbsolutePath(), TAG);
+            try {
+                if (android.os.Build.VERSION.SDK_INT < 27) {
+                    throw new IllegalStateException("NNAPI requires Android 8.1+");
+                }
+
+                try (OrtSession.SessionOptions options = new OrtSession.SessionOptions()) {
+                    options.setIntraOpNumThreads(OrtSessionHelper.getOptimalThreadCount());
+                    options.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT);
+                    options.addNnapi();
+
+                    session = env.createSession(modelFile.getAbsolutePath(), options);
+                    Log.i(TAG, "FaceSwapper initialized with NNAPI");
+                }
+            } catch (Exception nnapiError) {
+                Log.w(TAG, "NNAPI unavailable, falling back to CPU", nnapiError);
+                session = OrtSessionHelper.createSession(env, modelFile.getAbsolutePath(), TAG);
+            }
 
             // Resolve input names by tensor shape to avoid Set ordering issues
             // Python: input_names[0] = image (4D), input_names[1] = embedding (2D)
