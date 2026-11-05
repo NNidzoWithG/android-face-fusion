@@ -49,7 +49,16 @@ public class FaceSwapper {
             Log.d(TAG, "Model file ready, size: " + modelFile.length() + " bytes");
             
             // Load with optimized multi-threaded CPU configuration
-            session = OrtSessionHelper.createSession(env, modelFile.getAbsolutePath(), TAG);
+            try (OrtSession.SessionOptions options = new OrtSession.SessionOptions()) {
+                options.setIntraOpNumThreads(1);
+                options.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT);
+                options.addXnnpack(java.util.Collections.singletonMap("intra_op_num_threads", "4"));
+                session = env.createSession(modelFile.getAbsolutePath(), options);
+                Log.i(TAG, "FaceSwapper initialized with XNNPACK");
+            } catch (Exception xnnpackError) {
+                Log.w(TAG, "XNNPACK unavailable, falling back to CPU", xnnpackError);
+                session = OrtSessionHelper.createSession(env, modelFile.getAbsolutePath(), TAG);
+            }
 
             // Resolve input names by tensor shape to avoid Set ordering issues
             // Python: input_names[0] = image (4D), input_names[1] = embedding (2D)
