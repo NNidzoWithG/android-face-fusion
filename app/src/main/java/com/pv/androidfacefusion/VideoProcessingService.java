@@ -39,6 +39,7 @@ public class VideoProcessingService extends Service {
     private NotificationManager notificationManager;
 
     private String lastErrorMessage = null;
+    private String lastPerformanceReport = null;
 
     private void saveVideoError(Throwable error) {
         lastErrorMessage = error.getClass().getSimpleName()
@@ -211,6 +212,17 @@ public class VideoProcessingService extends Service {
             VideoProcessor videoProcessor = new VideoProcessor(this, processor);
 
             videoProcessor.setProgressListener((percent, stage) -> {
+                if (percent == 100 && stage.startsWith("Frames:")) {
+                    lastPerformanceReport = stage;
+                    try {
+                        File report = new File(getFilesDir(), "gswap_last_performance.txt");
+                        try (FileOutputStream out = new FileOutputStream(report, false)) {
+                            out.write(stage.getBytes(StandardCharsets.UTF_8));
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Cannot save performance report", e);
+                    }
+                }
                 notificationManager.notify(
                         NOTIFICATION_ID,
                         buildNotification(stage + " - " + percent + "%", percent, true)
@@ -271,7 +283,10 @@ public class VideoProcessingService extends Service {
             notificationManager.notify(
                     NOTIFICATION_ID,
                     buildNotification(
-                            success ? "Video saved in Movies/GSwap/Videos"
+                            success
+                                    ? (lastPerformanceReport == null
+                                            ? "Video saved in Movies/GSwap/Videos"
+                                            : lastPerformanceReport)
                                     : (lastErrorMessage == null
                                             ? "Video processing failed"
                                             : "Failed: " + lastErrorMessage),

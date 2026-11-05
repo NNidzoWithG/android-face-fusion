@@ -71,6 +71,10 @@ public class VideoProcessor {
         int height = Math.max(2, (info.height / 2) * 2);
         int fps = 10;
         long frameStepUs = 1000000L / fps;
+        long extractionNs = 0;
+        long fusionNs = 0;
+        long encodingNs = 0;
+        int processedFrames = 0;
         File tempVideo = File.createTempFile("gswap_", ".mp4", context.getCacheDir());
         try {
             MediaMetadataRetriever frameRetriever = new MediaMetadataRetriever();
@@ -80,14 +84,21 @@ public class VideoProcessor {
                         tempVideo.getAbsolutePath(), width, height, fps)) {
                     for (long timeUs = 0; timeUs < info.durationUs; timeUs += frameStepUs) {
                 android.util.Log.i("GSwapVideo", "Extracting frame at " + timeUs + " us");
+                    long t0 = System.nanoTime();
                     Bitmap frame = frameRetriever.getFrameAtTime(
                             timeUs, MediaMetadataRetriever.OPTION_CLOSEST);
+                    extractionNs += System.nanoTime() - t0;
                     if (frame == null) continue;
                     try {
+                        long t1 = System.nanoTime();
                         Bitmap result = swapVideoFrame(frame, sourceEmbedding);
+                        fusionNs += System.nanoTime() - t1;
                     android.util.Log.i("GSwapVideo", "Face swap completed at " + timeUs + " us");
                         try {
+                            long t2 = System.nanoTime();
                             encoder.addFrame(result);
+                            encodingNs += System.nanoTime() - t2;
+                            processedFrames++;
                         android.util.Log.i("GSwapVideo", "Frame encoded at " + timeUs + " us");
                         reportProgress(Math.min(95, (int) ((timeUs + frameStepUs) * 95L / Math.max(1L, info.durationUs))), "Processing frames");
                         } finally {
@@ -121,7 +132,14 @@ public class VideoProcessor {
             } finally {
                 finalVideo.delete();
             }
-            reportProgress(100, "Video saved");
+            String timing = String.format(java.util.Locale.US,
+                    "Frames:%d Extract:%.1fs Swap:%.1fs Encode:%.1fs",
+                    processedFrames,
+                    extractionNs / 1e9,
+                    fusionNs / 1e9,
+                    encodingNs / 1e9);
+            android.util.Log.i("GSwapVideo", timing);
+            reportProgress(100, timing);
         } finally {
             tempVideo.delete();
         }
