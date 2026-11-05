@@ -15,6 +15,11 @@ import android.os.Process;
 import android.provider.MediaStore;
 import android.util.Log;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -32,6 +37,32 @@ public class VideoProcessingService extends Service {
     private final AtomicBoolean busy = new AtomicBoolean(false);
 
     private NotificationManager notificationManager;
+
+    private String lastErrorMessage = null;
+
+    private void saveVideoError(Throwable error) {
+        lastErrorMessage = error.getClass().getSimpleName()
+                + ": " + String.valueOf(error.getMessage());
+
+        try {
+            StringWriter trace = new StringWriter();
+            error.printStackTrace(new PrintWriter(trace));
+
+            File file = new File(getFilesDir(), "gswap_last_error.txt");
+
+            try (FileOutputStream out = new FileOutputStream(file, false)) {
+                String report = "G Swap video processing error\n"
+                        + "Time: " + new java.util.Date() + "\n"
+                        + "Error: " + lastErrorMessage + "\n\n"
+                        + trace;
+
+                out.write(report.getBytes(StandardCharsets.UTF_8));
+            }
+        } catch (Exception writeError) {
+            Log.e(TAG, "Cannot save video error report", writeError);
+        }
+    }
+
 
     @Override
     public void onCreate() {
@@ -204,6 +235,7 @@ public class VideoProcessingService extends Service {
 
         } catch (Exception e) {
             Log.e(TAG, "Video processing failed", e);
+            saveVideoError(e);
 
             if (outputUri != null) {
                 try {
@@ -239,8 +271,10 @@ public class VideoProcessingService extends Service {
             notificationManager.notify(
                     NOTIFICATION_ID,
                     buildNotification(
-                            success ? "Video saved in Movies/GSwap"
-                                    : "Video processing failed",
+                            success ? "Video saved in Movies/GSwap/Videos"
+                                    : (lastErrorMessage == null
+                                            ? "Video processing failed"
+                                            : "Failed: " + lastErrorMessage),
                             success ? 100 : 0,
                             false
                     )
