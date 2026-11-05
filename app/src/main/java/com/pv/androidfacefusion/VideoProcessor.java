@@ -73,11 +73,15 @@ public class VideoProcessor {
         long frameStepUs = 1000000L / fps;
         File tempVideo = File.createTempFile("gswap_", ".mp4", context.getCacheDir());
         try {
-            try (VideoEncoder encoder = new VideoEncoder(
-                    tempVideo.getAbsolutePath(), width, height, fps)) {
-                for (long timeUs = 0; timeUs < info.durationUs; timeUs += frameStepUs) {
+            MediaMetadataRetriever frameRetriever = new MediaMetadataRetriever();
+            try {
+                frameRetriever.setDataSource(context, inputVideo);
+                try (VideoEncoder encoder = new VideoEncoder(
+                        tempVideo.getAbsolutePath(), width, height, fps)) {
+                    for (long timeUs = 0; timeUs < info.durationUs; timeUs += frameStepUs) {
                 android.util.Log.i("GSwapVideo", "Extracting frame at " + timeUs + " us");
-                    Bitmap frame = extractFrame(inputVideo, timeUs);
+                    Bitmap frame = frameRetriever.getFrameAtTime(
+                            timeUs, MediaMetadataRetriever.OPTION_CLOSEST);
                     if (frame == null) continue;
                     try {
                         Bitmap result = swapVideoFrame(frame, sourceEmbedding);
@@ -93,7 +97,14 @@ public class VideoProcessor {
                         frame.recycle();
                     }
                 }
-                encoder.finish();
+                    encoder.finish();
+                }
+            } finally {
+                try {
+                    frameRetriever.release();
+                } catch (java.io.IOException e) {
+                    android.util.Log.e("GSwapVideo", "Frame retriever release failed", e);
+                }
             }
             File finalVideo = File.createTempFile("gswap_final_", ".mp4", context.getCacheDir());
             try {

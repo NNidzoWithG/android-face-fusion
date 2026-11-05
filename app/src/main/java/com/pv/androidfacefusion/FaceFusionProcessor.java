@@ -141,7 +141,8 @@ public class FaceFusionProcessor {
         List<FaceDetector.Face> faces = faceDetector.detectFaces(frame);
 
         if (faces.isEmpty()) {
-            throw new Exception("No face detected in video frame.");
+            Log.d(TAG, "No face detected; keeping original video frame");
+            return frame;
         }
 
         FaceDetector.Face largest = faces.get(0);
