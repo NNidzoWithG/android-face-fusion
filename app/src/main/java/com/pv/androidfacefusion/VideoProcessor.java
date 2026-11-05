@@ -139,7 +139,8 @@ public class VideoProcessor {
                     fusionNs / 1e9,
                     encodingNs / 1e9);
             android.util.Log.i("GSwapVideo", timing);
-            reportProgress(100, timing);
+            reportProgress(100, "Frames:" + processedFrames + " "
+                    + faceProcessor.getVideoTimingReport());
         } finally {
             tempVideo.delete();
         }

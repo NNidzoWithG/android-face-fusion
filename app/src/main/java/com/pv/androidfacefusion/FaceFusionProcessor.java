@@ -137,11 +137,18 @@ public class FaceFusionProcessor {
      * Process face fusion where each target face index is mapped to a specific library face embedding
      */
 
+    private long videoDetectNs = 0;
+    private long videoAlignNs = 0;
+    private long videoSwapNs = 0;
+    private long videoBlendNs = 0;
+    private int videoFramesMeasured = 0;
+
     public Bitmap processVideoFaceFusion(Bitmap frame, float[] sourceEmbedding) throws Exception {
+        long t = System.nanoTime();
         List<FaceDetector.Face> faces = faceDetector.detectFaces(frame);
+        videoDetectNs += System.nanoTime() - t;
 
         if (faces.isEmpty()) {
-            Log.d(TAG, "No face detected; keeping original video frame");
             return frame;
         }
 
@@ -156,19 +163,47 @@ public class FaceFusionProcessor {
             }
         }
 
-        Log.d(TAG, "Video selected largest face: bbox="
-                + largest.bbox + ", score=" + largest.score);
-
+        t = System.nanoTime();
         Bitmap aligned = ImageUtils.alignFace(frame, largest.landmarks, 128);
+        videoAlignNs += System.nanoTime() - t;
+
         Bitmap swapped = null;
 
         try {
+            t = System.nanoTime();
             swapped = faceSwapper.swapFace(aligned, sourceEmbedding, frame);
-            return ImageUtils.blendFaces(frame, swapped, largest.landmarks, 128);
+            videoSwapNs += System.nanoTime() - t;
+
+            t = System.nanoTime();
+            Bitmap result = ImageUtils.blendFaces(frame, swapped, largest.landmarks, 128);
+            videoBlendNs += System.nanoTime() - t;
+
+            videoFramesMeasured++;
+
+            if (videoFramesMeasured % 5 == 0) {
+                Log.i("GSwapTiming", String.format(java.util.Locale.US,
+                        "Frames:%d Detect:%.1fs Align:%.1fs Swap:%.1fs Blend:%.1fs",
+                        videoFramesMeasured,
+                        videoDetectNs / 1e9,
+                        videoAlignNs / 1e9,
+                        videoSwapNs / 1e9,
+                        videoBlendNs / 1e9));
+            }
+
+            return result;
         } finally {
             aligned.recycle();
             if (swapped != null) swapped.recycle();
         }
+    }
+
+    public String getVideoTimingReport() {
+        return String.format(java.util.Locale.US,
+                "Detect:%.1fs Align:%.1fs Swap:%.1fs Blend:%.1fs",
+                videoDetectNs / 1e9,
+                videoAlignNs / 1e9,
+                videoSwapNs / 1e9,
+                videoBlendNs / 1e9);
     }
 
     public Bitmap processFaceFusionWithMapping(Bitmap targetImage, Map<Integer, float[]> targetIndexToEmbeddingMap) throws Exception {
