@@ -65,6 +65,7 @@ public class VideoProcessor {
     public void processVideo(Uri inputVideo, Uri outputVideo, float[] sourceEmbedding) throws Exception {
         if (sourceEmbedding == null || sourceEmbedding.length == 0)
             throw new IllegalArgumentException("Source face missing");
+        faceProcessor.resetVideoTiming();
         VideoInfo info = getVideoInfo(inputVideo);
         reportProgress(0, "Preparing video");
         int width = Math.max(2, (info.width / 2) * 2);

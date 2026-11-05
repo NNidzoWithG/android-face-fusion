@@ -143,6 +143,15 @@ public class FaceFusionProcessor {
     private long videoBlendNs = 0;
     private int videoFramesMeasured = 0;
 
+    public void resetVideoTiming() {
+        videoDetectNs = 0;
+        videoAlignNs = 0;
+        videoSwapNs = 0;
+        videoBlendNs = 0;
+        videoFramesMeasured = 0;
+        faceSwapper.resetInferenceTiming();
+    }
+
     public Bitmap processVideoFaceFusion(Bitmap frame, float[] sourceEmbedding) throws Exception {
         long t = System.nanoTime();
         List<FaceDetector.Face> faces = faceDetector.detectFaces(frame);
@@ -199,10 +208,11 @@ public class FaceFusionProcessor {
 
     public String getVideoTimingReport() {
         return String.format(java.util.Locale.US,
-                "Detect:%.1fs Align:%.1fs Swap:%.1fs Blend:%.1fs",
+                "Detect:%.1fs Align:%.1fs Swap:%.1fs ONNX:%.1fs Blend:%.1fs",
                 videoDetectNs / 1e9,
                 videoAlignNs / 1e9,
                 videoSwapNs / 1e9,
+                faceSwapper.getTotalInferenceSeconds(),
                 videoBlendNs / 1e9);
     }
 

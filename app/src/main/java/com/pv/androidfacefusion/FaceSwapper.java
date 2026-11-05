@@ -25,6 +25,7 @@ import ai.onnxruntime.TensorInfo;
 public class FaceSwapper {
     private static final String TAG = "FaceSwapper";
     private static final int INPUT_SIZE = 128;
+    private long totalInferenceNs = 0;
     
     private OrtEnvironment env;
     private OrtSession session;
@@ -221,7 +222,12 @@ public class FaceSwapper {
         inputs.put(imageInputName, targetTensor);
         inputs.put(embeddingInputName, embeddingTensor);
         
+        long inferenceStartNs = System.nanoTime();
         OrtSession.Result results = session.run(inputs);
+        long inferenceDurationNs = System.nanoTime() - inferenceStartNs;
+        totalInferenceNs += inferenceDurationNs;
+        Log.i("GSwapInference", String.format(java.util.Locale.US,
+                "ONNX inference: %.3f s", inferenceDurationNs / 1e9));
 
         // Get swapped face
         float[][][][] outputData = (float[][][][]) results.get(0).getValue();
@@ -316,6 +322,14 @@ public class FaceSwapper {
 
         bitmap.setPixels(pixels, 0, width, 0, 0, width, height);
         return bitmap;
+    }
+
+    public double getTotalInferenceSeconds() {
+        return totalInferenceNs / 1e9;
+    }
+
+    public void resetInferenceTiming() {
+        totalInferenceNs = 0;
     }
 
     public void close() {
