@@ -278,6 +278,20 @@ public class VideoProcessingService extends Service {
                 Log.e(TAG, "Swapper cleanup failed", e);
             }
 
+
+            getSharedPreferences("gswap_video_result", MODE_PRIVATE)
+                    .edit()
+                    .putBoolean("pending", true)
+                    .putBoolean("success", success)
+                    .putString("report", success
+                            ? (lastPerformanceReport == null
+                                    ? "Video saved in Movies/GSwap/Videos"
+                                    : lastPerformanceReport)
+                            : (lastErrorMessage == null
+                                    ? "Video processing failed"
+                                    : lastErrorMessage))
+                    .apply();
+
             stopForeground(STOP_FOREGROUND_REMOVE);
 
             notificationManager.notify(

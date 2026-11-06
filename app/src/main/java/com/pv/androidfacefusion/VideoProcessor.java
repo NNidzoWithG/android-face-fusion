@@ -62,7 +62,7 @@ public class VideoProcessor {
         return faceProcessor.processVideoFaceFusion(frame, sourceEmbedding);
     }
 
-    private static final boolean BENCHMARK_ONE_FRAME = true;
+    private static final boolean BENCHMARK_ONE_FRAME = false;
 
     public void processVideo(Uri inputVideo, Uri outputVideo, float[] sourceEmbedding) throws Exception {
         if (sourceEmbedding == null || sourceEmbedding.length == 0)

@@ -147,6 +147,26 @@ public class MainActivity extends AppCompatActivity implements SavedFacesAdapter
         loadSavedFaces();
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        android.content.SharedPreferences prefs =
+                getSharedPreferences("gswap_video_result", MODE_PRIVATE);
+
+        if (!prefs.getBoolean("pending", false)) return;
+
+        boolean success = prefs.getBoolean("success", false);
+        String report = prefs.getString("report", "No report available");
+
+        new AlertDialog.Builder(this)
+                .setTitle(success ? "G Swap - Video completed" : "G Swap - Video failed")
+                .setMessage(report)
+                .setPositiveButton("OK", (dialog, which) ->
+                        prefs.edit().putBoolean("pending", false).apply())
+                .show();
+    }
+
     private void initViews() {
         // Mode Switcher
         modeToggleGroup = findViewById(R.id.modeToggleGroup);
