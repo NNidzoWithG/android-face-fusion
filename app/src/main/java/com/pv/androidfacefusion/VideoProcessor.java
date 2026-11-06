@@ -123,7 +123,44 @@ public class VideoProcessor {
                 frameRetriever.setDataSource(context, inputVideo);
                 try (VideoEncoder encoder = new VideoEncoder(
                         tempVideo.getAbsolutePath(), width, height, fps)) {
-                    for (long timeUs = 0; timeUs < info.durationUs; timeUs += frameStepUs) {
+                    MediaExtractor timeline = new MediaExtractor();
+                    try {
+                        timeline.setDataSource(context, inputVideo, null);
+
+                        int videoTrack = -1;
+                        for (int i = 0; i < timeline.getTrackCount(); i++) {
+                            String mime = timeline.getTrackFormat(i)
+                                    .getString(MediaFormat.KEY_MIME);
+                            if (mime != null && mime.startsWith("video/")) {
+                                videoTrack = i;
+                                break;
+                            }
+                        }
+
+                        if (videoTrack < 0)
+                            throw new java.io.IOException("No video track");
+
+                        timeline.selectTrack(videoTrack);
+
+                        java.util.ArrayList<Long> timestamps =
+                                new java.util.ArrayList<>();
+
+                        while (true) {
+                            long sampleTimeUs = timeline.getSampleTime();
+                            if (sampleTimeUs < 0) break;
+
+                            timestamps.add(sampleTimeUs);
+
+                            if (!timeline.advance()) break;
+                        }
+
+                        java.util.Collections.sort(timestamps);
+
+                        long previousTimeUs = -1;
+
+                        for (long timeUs : timestamps) {
+                            if (timeUs <= previousTimeUs) continue;
+                            previousTimeUs = timeUs;
                 android.util.Log.i("GSwapVideo", "Extracting frame at " + timeUs + " us");
                     long t0 = System.nanoTime();
                     Bitmap frame = frameRetriever.getFrameAtTime(
@@ -151,7 +188,15 @@ public class VideoProcessor {
                     } finally {
                         frame.recycle();
                     }
-                }
+                        }
+                    } finally {
+                        timeline.release();
+                    }
+
+                    if (processedFrames == 0)
+                        throw new java.io.IOException(
+                                "No video frames processed");
+
                     long finishStartNs = System.nanoTime();
                     encoder.finish();
                     finalizeNs += System.nanoTime() - finishStartNs;
