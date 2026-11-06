@@ -77,6 +77,8 @@ public class VideoProcessor {
         long extractionNs = 0;
         long fusionNs = 0;
         long encodingNs = 0;
+        long finalizeNs = 0;
+        long audioNs = 0;
         int processedFrames = 0;
         File tempVideo = File.createTempFile("gswap_", ".mp4", context.getCacheDir());
         try {
@@ -112,7 +114,9 @@ public class VideoProcessor {
                         frame.recycle();
                     }
                 }
+                    long finishStartNs = System.nanoTime();
                     encoder.finish();
+                    finalizeNs += System.nanoTime() - finishStartNs;
                 }
             } finally {
                 try {
@@ -123,7 +127,9 @@ public class VideoProcessor {
             }
             File finalVideo = File.createTempFile("gswap_final_", ".mp4", context.getCacheDir());
             try {
+                long audioStartNs = System.nanoTime();
                 AudioMuxer.merge(context, tempVideo, inputVideo, finalVideo);
+                audioNs = System.nanoTime() - audioStartNs;
                 try (FileInputStream input = new FileInputStream(finalVideo);
                      OutputStream output = context.getContentResolver().openOutputStream(outputVideo, "w")) {
                 if (output == null) throw new java.io.IOException("Cannot open output video");
@@ -137,13 +143,15 @@ public class VideoProcessor {
                 finalVideo.delete();
             }
             String timing = String.format(java.util.Locale.US,
-                    "Frames:%d Extract:%.1fs Swap:%.1fs Encode:%.1fs",
+                    "Frames:%d Extract:%.1fs Swap:%.1fs Encode:%.1fs Finish:%.1fs Audio:%.1fs",
                     processedFrames,
                     extractionNs / 1e9,
                     fusionNs / 1e9,
-                    encodingNs / 1e9);
+                    encodingNs / 1e9,
+                    finalizeNs / 1e9,
+                    audioNs / 1e9);
             android.util.Log.i("GSwapVideo", timing);
-            reportProgress(100, "Frames:" + processedFrames + " "
+            reportProgress(100, timing + " "
                     + faceProcessor.getVideoTimingReport());
         } finally {
             tempVideo.delete();
