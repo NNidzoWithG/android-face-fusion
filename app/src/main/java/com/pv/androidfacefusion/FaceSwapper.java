@@ -25,6 +25,7 @@ import ai.onnxruntime.TensorInfo;
 public class FaceSwapper {
     private static final String TAG = "FaceSwapper";
     private static final int INPUT_SIZE = 128;
+    private static final boolean BENCHMARK_USE_XNNPACK = false;
     private String activeProvider = "Not initialized";
     private long totalInferenceNs = 0;
     
@@ -49,8 +50,11 @@ public class FaceSwapper {
             
             Log.d(TAG, "Model file ready, size: " + modelFile.length() + " bytes");
             
-            // Load with optimized multi-threaded CPU configuration
-            try (OrtSession.SessionOptions options = new OrtSession.SessionOptions()) {
+            // Select execution provider for controlled benchmark
+            if (!BENCHMARK_USE_XNNPACK) {
+                session = OrtSessionHelper.createSession(env, modelFile.getAbsolutePath(), TAG);
+                activeProvider = "CPU benchmark";
+            } else try (OrtSession.SessionOptions options = new OrtSession.SessionOptions()) {
                 options.setIntraOpNumThreads(1);
                 options.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT);
                 options.addXnnpack(java.util.Collections.singletonMap("intra_op_num_threads", "4"));
