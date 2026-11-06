@@ -52,18 +52,8 @@ public class FaceSwapper {
             
             // Select execution provider for controlled benchmark
             if (!BENCHMARK_USE_XNNPACK) {
-                try (OrtSession.SessionOptions options = new OrtSession.SessionOptions()) {
-                    options.setIntraOpNumThreads(1);
-                    options.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT);
-                    options.addNnapi();
-                    session = env.createSession(modelFile.getAbsolutePath(), options);
-                    activeProvider = "NNAPI requested";
-                    Log.i(TAG, "FaceSwapper initialized with NNAPI requested");
-                } catch (Exception nnapiError) {
-                    Log.w(TAG, "NNAPI unavailable, falling back to CPU", nnapiError);
-                    session = OrtSessionHelper.createSession(env, modelFile.getAbsolutePath(), TAG);
-                    activeProvider = "CPU fallback";
-                }
+                session = OrtSessionHelper.createSession(env, modelFile.getAbsolutePath(), TAG);
+                activeProvider = "CPU control";
             } else try (OrtSession.SessionOptions options = new OrtSession.SessionOptions()) {
                 options.setIntraOpNumThreads(1);
                 options.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT);
