@@ -63,6 +63,40 @@ public class VideoProcessor {
     }
 
 
+
+    private int detectVideoFps(Uri videoUri) {
+        MediaExtractor extractor = new MediaExtractor();
+        try {
+            extractor.setDataSource(context, videoUri, null);
+
+            for (int i = 0; i < extractor.getTrackCount(); i++) {
+                MediaFormat format = extractor.getTrackFormat(i);
+                String mime = format.getString(MediaFormat.KEY_MIME);
+
+                if (mime == null || !mime.startsWith("video/"))
+                    continue;
+
+                if (format.containsKey(MediaFormat.KEY_FRAME_RATE)) {
+                    int fps = format.getInteger(
+                            MediaFormat.KEY_FRAME_RATE);
+
+                    if (fps >= 1 && fps <= 120) {
+                        return fps;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            android.util.Log.w("GSwapVideo",
+                    "Cannot detect source FPS", e);
+        } finally {
+            extractor.release();
+        }
+
+        android.util.Log.w("GSwapVideo",
+                "FPS unavailable, using fallback 10");
+        return 10;
+    }
+
     public void processVideo(Uri inputVideo, Uri outputVideo, float[] sourceEmbedding) throws Exception {
         if (sourceEmbedding == null || sourceEmbedding.length == 0)
             throw new IllegalArgumentException("Source face missing");
@@ -71,8 +105,11 @@ public class VideoProcessor {
         reportProgress(0, "Preparing video");
         int width = Math.max(2, (info.width / 2) * 2);
         int height = Math.max(2, (info.height / 2) * 2);
-        int fps = 10;
+        int fps = detectVideoFps(inputVideo);
         long frameStepUs = 1000000L / fps;
+        android.util.Log.i("GSwapVideo",
+                "Input FPS selected: " + fps
+                + ", durationUs: " + info.durationUs);
         long extractionNs = 0;
         long fusionNs = 0;
         long encodingNs = 0;
