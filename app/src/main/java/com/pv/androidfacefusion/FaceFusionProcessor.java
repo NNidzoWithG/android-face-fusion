@@ -214,7 +214,7 @@ public class FaceFusionProcessor {
                 videoAlignNs / 1e9,
                 videoSwapNs / 1e9,
                 faceSwapper.getTotalInferenceSeconds(),
-                videoBlendNs / 1e9);
+                videoBlendNs / 1e9) + faceSwapper.getInferenceSamples();
     }
 
     public Bitmap processFaceFusionWithMapping(Bitmap targetImage, Map<Integer, float[]> targetIndexToEmbeddingMap) throws Exception {

@@ -28,6 +28,7 @@ public class FaceSwapper {
     private static final boolean BENCHMARK_USE_XNNPACK = false;
     private String activeProvider = "Not initialized";
     private long totalInferenceNs = 0;
+    private final java.util.List<Double> inferenceSamples = new java.util.ArrayList<>();
     
     private OrtEnvironment env;
     private OrtSession session;
@@ -242,6 +243,9 @@ public class FaceSwapper {
         OrtSession.Result results = session.run(inputs);
         long inferenceDurationNs = System.nanoTime() - inferenceStartNs;
         totalInferenceNs += inferenceDurationNs;
+        if (inferenceSamples.size() < 5) {
+            inferenceSamples.add(inferenceDurationNs / 1e9);
+        }
         Log.i("GSwapInference", String.format(java.util.Locale.US,
                 "ONNX inference: %.3f s", inferenceDurationNs / 1e9));
 
@@ -350,6 +354,16 @@ public class FaceSwapper {
 
     public void resetInferenceTiming() {
         totalInferenceNs = 0;
+        inferenceSamples.clear();
+    }
+
+    public String getInferenceSamples() {
+        StringBuilder report = new StringBuilder();
+        for (int i = 0; i < inferenceSamples.size(); i++) {
+            report.append(String.format(java.util.Locale.US,
+                    " F%d:%.1fs", i + 1, inferenceSamples.get(i)));
+        }
+        return report.toString();
     }
 
     public void close() {
