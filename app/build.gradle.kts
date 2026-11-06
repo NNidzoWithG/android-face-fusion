@@ -21,7 +21,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
         ndk {
-            abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64"))
+            abiFilters.add("arm64-v8a")
         }
     }
 
@@ -173,10 +173,7 @@ val copyNdkLibCxxShared = tasks.register("copyNdkLibCxxShared") {
 
         // 4. Map ABIs to sysroot library directories
         val abiMap = mapOf(
-            "arm64-v8a" to "aarch64-linux-android",
-            "x86_64" to "x86_64-linux-android",
-            "armeabi-v7a" to "arm-linux-androideabi",
-            "x86" to "i686-linux-android"
+            "arm64-v8a" to "aarch64-linux-android"
         )
 
         val targetDir = layout.buildDirectory.dir("intermediates/ndk_libcxx").get().asFile

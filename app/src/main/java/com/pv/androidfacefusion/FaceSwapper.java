@@ -26,7 +26,7 @@ public class FaceSwapper {
     private static final String TAG = "FaceSwapper";
     private static final int INPUT_SIZE = 128;
     // XNNPACK may accelerate the swapper; if unavailable, use proven CPU path.
-    private static final boolean BENCHMARK_USE_XNNPACK = true;
+    private static final boolean BENCHMARK_USE_XNNPACK = false;
     private String activeProvider = "Not initialized";
     private long totalInferenceNs = 0;
     private int inferenceCount = 0;

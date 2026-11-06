@@ -74,34 +74,36 @@ public class FaceDetector {
 
         // Preprocess image with aspect ratio preservation
         Bitmap resizedBitmap = resizeWithPadding(bitmap);
-        float[] inputData = bitmapToFloatArray(resizedBitmap);
-
-        // Create input tensor
-        long[] shape = {1, 3, INPUT_SIZE, INPUT_SIZE};
-        OnnxTensor inputTensor = OnnxTensor.createTensor(env, FloatBuffer.wrap(inputData), shape);
-
-        // Get the actual input name from the model
-        String inputName = session.getInputNames().iterator().next();
-        
-        // Run inference
-        OrtSession.Result results = session.run(
-            java.util.Collections.singletonMap(inputName, inputTensor)
-        );
-
-        // Parse results with default threshold (0.5)
-        List<Face> faces = parseDetections(results, bitmap.getWidth(), bitmap.getHeight());
-        
-        // If no faces found, try again with lower threshold
-        if (faces.isEmpty()) {
-            Log.w(TAG, "No faces found with threshold 0.5, trying with lower threshold 0.3");
-            faces = parseDetectionsWithThreshold(results, bitmap.getWidth(), bitmap.getHeight(), 0.3f);
+        float[] inputData;
+        try {
+            inputData = bitmapToFloatArray(resizedBitmap);
+        } finally {
+            resizedBitmap.recycle();
         }
-        
-        inputTensor.close();
-        results.close();
 
-        Log.d(TAG, "Final detection result: " + faces.size() + " face(s) found");
-        return faces;
+        long[] shape = {1, 3, INPUT_SIZE, INPUT_SIZE};
+
+        try (OnnxTensor inputTensor = OnnxTensor.createTensor(
+                env, FloatBuffer.wrap(inputData), shape)) {
+
+            String inputName = session.getInputNames().iterator().next();
+
+            try (OrtSession.Result results = session.run(
+                    java.util.Collections.singletonMap(inputName, inputTensor))) {
+
+                List<Face> faces = parseDetections(
+                        results, bitmap.getWidth(), bitmap.getHeight());
+
+                if (faces.isEmpty()) {
+                    Log.w(TAG, "No faces found with threshold 0.5, trying with lower threshold 0.3");
+                    faces = parseDetectionsWithThreshold(
+                            results, bitmap.getWidth(), bitmap.getHeight(), 0.3f);
+                }
+
+                Log.d(TAG, "Final detection result: " + faces.size() + " face(s) found");
+                return faces;
+            }
+        }
     }
     
     private Bitmap resizeWithPadding(Bitmap source) {
@@ -132,9 +134,13 @@ public class FaceDetector {
 
         // Place image at top-left (matching Python: det_img[:new_height, :new_width, :] = resized_img)
         Bitmap resized = Bitmap.createScaledBitmap(source, newWidth, newHeight, true);
-        canvas.drawBitmap(resized, 0, 0, null);
-
-        resized.recycle();
+        try {
+            canvas.drawBitmap(resized, 0, 0, null);
+        } finally {
+            if (resized != source) {
+                resized.recycle();
+            }
+        }
 
         return padded;
     }
@@ -193,31 +199,6 @@ public class FaceDetector {
         List<Face> faces = new ArrayList<>();
         
         try {
-            // Log output information for debugging (only first time)
-            if (threshold >= 0.5f) {
-                Log.d(TAG, "Number of outputs: " + results.size());
-                
-                for (int i = 0; i < results.size(); i++) {
-                    try {
-                        Object value = results.get(i).getValue();
-                        Log.d(TAG, "Output " + i + " type: " + value.getClass().getName());
-                        
-                        if (value instanceof float[][]) {
-                            float[][] data = (float[][]) value;
-                            Log.d(TAG, "Output " + i + " shape: [" + data.length + "][" + 
-                                (data.length > 0 ? data[0].length : 0) + "]");
-                        } else if (value instanceof float[][][]) {
-                            float[][][] data = (float[][][]) value;
-                            Log.d(TAG, "Output " + i + " shape: [" + data.length + "][" + 
-                                (data.length > 0 ? data[0].length : 0) + "][" +
-                                (data.length > 0 && data[0].length > 0 ? data[0][0].length : 0) + "]");
-                        }
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error inspecting output " + i, e);
-                    }
-                }
-            }
-            
             // SCRFD model output formats:
             // 9 outputs: 3 FPN levels (stride 8,16,32), 2 anchors/pos, WITH keypoints
             //   0-2: Scores [N][1], 3-5: Boxes [N][4], 6-8: Landmarks [N][10]

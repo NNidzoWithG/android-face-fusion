@@ -347,30 +347,63 @@ public class ImageUtils {
      */
     private static float[] erodeMaskFloat(float[] mask, int width, int height, int kernelSize,
                                           int minX, int minY, int maxX, int maxY) {
-        float[] result = mask.clone();
         int halfK = kernelSize / 2;
 
-        // Expand processing region by kernel size
         int startY = Math.max(0, minY - halfK);
         int endY = Math.min(height, maxY + halfK + 1);
         int startX = Math.max(0, minX - halfK);
         int endX = Math.min(width, maxX + halfK + 1);
 
-        for (int y = startY; y < endY; y++) {
+        // Horizontal pass must cover rows needed by the vertical pass.
+        int horizontalStartY = Math.max(0, startY - halfK);
+        int horizontalEndY = Math.min(height, endY + halfK);
+
+        float[] horizontal = mask.clone();
+
+        for (int y = horizontalStartY; y < horizontalEndY; y++) {
+            int row = y * width;
+
             for (int x = startX; x < endX; x++) {
                 float minVal = 255.0f;
-                for (int ky = -halfK; ky <= halfK; ky++) {
-                    int ny = y + ky;
-                    if (ny < 0 || ny >= height) { minVal = 0; continue; }
-                    for (int kx = -halfK; kx <= halfK; kx++) {
-                        int nx = x + kx;
-                        if (nx < 0 || nx >= width) { minVal = 0; continue; }
-                        minVal = Math.min(minVal, mask[ny * width + nx]);
+
+                for (int kx = -halfK; kx <= halfK; kx++) {
+                    int nx = x + kx;
+
+                    if (nx < 0 || nx >= width) {
+                        minVal = 0.0f;
+                        break;
                     }
+
+                    minVal = Math.min(minVal, mask[row + nx]);
                 }
-                result[y * width + x] = minVal;
+
+                horizontal[row + x] = minVal;
             }
         }
+
+        float[] result = mask.clone();
+
+        for (int y = startY; y < endY; y++) {
+            int row = y * width;
+
+            for (int x = startX; x < endX; x++) {
+                float minVal = 255.0f;
+
+                for (int ky = -halfK; ky <= halfK; ky++) {
+                    int ny = y + ky;
+
+                    if (ny < 0 || ny >= height) {
+                        minVal = 0.0f;
+                        break;
+                    }
+
+                    minVal = Math.min(minVal, horizontal[ny * width + x]);
+                }
+
+                result[row + x] = minVal;
+            }
+        }
+
         return result;
     }
 

@@ -184,7 +184,6 @@ public class VideoProcessingService extends Service {
     private void processVideo(Uri inputUri, float[] embedding, int startId) {
 
         FaceDetector detector = null;
-        FaceEmbedder embedder = null;
         FaceSwapper swapper = null;
         Uri outputUri = null;
         boolean success = false;
@@ -200,14 +199,11 @@ public class VideoProcessingService extends Service {
             detector = new FaceDetector(this);
             detector.initialize();
 
-            embedder = new FaceEmbedder(this);
-            embedder.initialize();
-
             swapper = new FaceSwapper(this);
             swapper.initialize();
 
             FaceFusionProcessor processor =
-                    new FaceFusionProcessor(detector, embedder, swapper);
+                    new FaceFusionProcessor(detector, null, swapper);
 
             VideoProcessor videoProcessor = new VideoProcessor(this, processor);
 
@@ -264,12 +260,6 @@ public class VideoProcessingService extends Service {
                 if (detector != null) detector.close();
             } catch (Exception e) {
                 Log.e(TAG, "Detector cleanup failed", e);
-            }
-
-            try {
-                if (embedder != null) embedder.close();
-            } catch (Exception e) {
-                Log.e(TAG, "Embedder cleanup failed", e);
             }
 
             try {
