@@ -25,6 +25,7 @@ import ai.onnxruntime.TensorInfo;
 public class FaceSwapper {
     private static final String TAG = "FaceSwapper";
     private static final int INPUT_SIZE = 128;
+    private String activeProvider = "Not initialized";
     private long totalInferenceNs = 0;
     
     private OrtEnvironment env;
@@ -54,8 +55,10 @@ public class FaceSwapper {
                 options.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT);
                 options.addXnnpack(java.util.Collections.singletonMap("intra_op_num_threads", "4"));
                 session = env.createSession(modelFile.getAbsolutePath(), options);
+                activeProvider = "XNNPACK";
                 Log.i(TAG, "FaceSwapper initialized with XNNPACK");
             } catch (Exception xnnpackError) {
+                activeProvider = "CPU fallback";
                 Log.w(TAG, "XNNPACK unavailable, falling back to CPU", xnnpackError);
                 session = OrtSessionHelper.createSession(env, modelFile.getAbsolutePath(), TAG);
             }
@@ -331,6 +334,10 @@ public class FaceSwapper {
 
         bitmap.setPixels(pixels, 0, width, 0, 0, width, height);
         return bitmap;
+    }
+
+    public String getActiveProvider() {
+        return activeProvider;
     }
 
     public double getTotalInferenceSeconds() {

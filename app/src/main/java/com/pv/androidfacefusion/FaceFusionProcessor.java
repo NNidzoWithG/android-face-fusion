@@ -208,7 +208,8 @@ public class FaceFusionProcessor {
 
     public String getVideoTimingReport() {
         return String.format(java.util.Locale.US,
-                "Detect:%.1fs Align:%.1fs Swap:%.1fs ONNX:%.1fs Blend:%.1fs",
+                "Provider:%s Detect:%.1fs Align:%.1fs Swap:%.1fs ONNX:%.1fs Blend:%.1fs",
+                faceSwapper.getActiveProvider(),
                 videoDetectNs / 1e9,
                 videoAlignNs / 1e9,
                 videoSwapNs / 1e9,

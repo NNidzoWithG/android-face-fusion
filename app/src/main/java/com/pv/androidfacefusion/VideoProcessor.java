@@ -62,6 +62,8 @@ public class VideoProcessor {
         return faceProcessor.processVideoFaceFusion(frame, sourceEmbedding);
     }
 
+    private static final boolean BENCHMARK_ONE_FRAME = true;
+
     public void processVideo(Uri inputVideo, Uri outputVideo, float[] sourceEmbedding) throws Exception {
         if (sourceEmbedding == null || sourceEmbedding.length == 0)
             throw new IllegalArgumentException("Source face missing");
@@ -102,6 +104,7 @@ public class VideoProcessor {
                             processedFrames++;
                         android.util.Log.i("GSwapVideo", "Frame encoded at " + timeUs + " us");
                         reportProgress(Math.min(95, (int) ((timeUs + frameStepUs) * 95L / Math.max(1L, info.durationUs))), "Processing frames");
+                        if (BENCHMARK_ONE_FRAME) break;
                         } finally {
                             if (result != frame) result.recycle();
                         }
