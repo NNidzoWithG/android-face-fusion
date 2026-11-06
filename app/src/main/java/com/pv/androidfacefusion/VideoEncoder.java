@@ -242,7 +242,6 @@ public class VideoEncoder implements AutoCloseable {
             drain(true);
             finished = true;
         } catch (RuntimeException e) {
-            failed = true;
             throw e;
         }
     }
