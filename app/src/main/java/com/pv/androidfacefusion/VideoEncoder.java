@@ -17,6 +17,7 @@ public class VideoEncoder implements AutoCloseable {
     private final MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
     private int track = -1;
     private int frameNumber = 0;
+    private long lastPresentationTimeUs = -1;
     private final int[] pixelBuffer;
     private final byte[] yuvBuffer;
     private boolean muxerStarted = false;
@@ -104,7 +105,9 @@ public class VideoEncoder implements AutoCloseable {
         muxer = createdMuxer;
     }
 
-    public void addFrame(Bitmap bitmap) {
+    public void addFrame(Bitmap bitmap, long presentationTimeUs) {
+        if (presentationTimeUs < 0)
+            throw new IllegalArgumentException("Negative frame timestamp");
         if (finished)
             throw new IllegalStateException("Encoder finished");
         if (bitmap == null)
@@ -166,7 +169,10 @@ public class VideoEncoder implements AutoCloseable {
         input.clear();
         input.put(yuv);
 
-        long pts = (long) frameNumber * 1000000L / fps;
+        long pts = presentationTimeUs;
+        if (frameNumber > 0 && pts <= lastPresentationTimeUs)
+            throw new IllegalArgumentException("Non-monotonic frame timestamp");
+        lastPresentationTimeUs = pts;
         codec.queueInputBuffer(index, 0, yuv.length, pts, 0);
         frameNumber++;
         drain(false);
@@ -182,7 +188,7 @@ public class VideoEncoder implements AutoCloseable {
             if (index < 0)
                 throw new IllegalStateException("EOS input timeout");
             codec.queueInputBuffer(index, 0, 0,
-                    (long) frameNumber * 1000000L / fps,
+                    lastPresentationTimeUs + 1000000L / fps,
                     MediaCodec.BUFFER_FLAG_END_OF_STREAM);
         }
 

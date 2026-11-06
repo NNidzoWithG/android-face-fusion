@@ -129,7 +129,10 @@ public class VideoProcessor {
                     Bitmap frame = frameRetriever.getFrameAtTime(
                             timeUs, MediaMetadataRetriever.OPTION_CLOSEST);
                     extractionNs += System.nanoTime() - t0;
-                    if (frame == null) continue;
+                    if (frame == null) {
+                        throw new java.io.IOException(
+                                "Cannot extract video frame at " + timeUs + " us");
+                    }
                     try {
                         long t1 = System.nanoTime();
                         Bitmap result = swapVideoFrame(frame, sourceEmbedding);
@@ -137,7 +140,7 @@ public class VideoProcessor {
                     android.util.Log.i("GSwapVideo", "Face swap completed at " + timeUs + " us");
                         try {
                             long t2 = System.nanoTime();
-                            encoder.addFrame(result);
+                            encoder.addFrame(result, timeUs);
                             encodingNs += System.nanoTime() - t2;
                             processedFrames++;
                         android.util.Log.i("GSwapVideo", "Frame encoded at " + timeUs + " us");
