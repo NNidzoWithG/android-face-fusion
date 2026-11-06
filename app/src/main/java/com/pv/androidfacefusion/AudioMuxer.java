@@ -87,6 +87,8 @@ public class AudioMuxer {
                 ? format.getInteger(MediaFormat.KEY_MAX_INPUT_SIZE)
                 : 1048576;
 
+        if (size < 0 || size > 64 * 1024 * 1024)
+            throw new IllegalArgumentException("Invalid media sample size: " + size);
         ByteBuffer buffer = ByteBuffer.allocateDirect(
                 Math.max(1048576, size));
 

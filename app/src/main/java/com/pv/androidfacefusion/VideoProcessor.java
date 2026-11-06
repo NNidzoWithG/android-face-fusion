@@ -103,10 +103,21 @@ public class VideoProcessor {
         faceProcessor.resetVideoTiming();
         VideoInfo info = getVideoInfo(inputVideo);
         reportProgress(0, "Preparing video");
-        int width = Math.max(2, (info.width / 2) * 2);
-        int height = Math.max(2, (info.height / 2) * 2);
+        // MediaMetadataRetriever may return already-rotated bitmaps. Derive
+        // output geometry from an actual frame to avoid portrait distortion.
+        Bitmap geometryFrame = extractFrame(inputVideo, 0);
+        if (geometryFrame == null)
+            throw new java.io.IOException("Cannot decode first video frame");
+        final int width;
+        final int height;
+        try {
+            width = Math.max(2, geometryFrame.getWidth() & ~1);
+            height = Math.max(2, geometryFrame.getHeight() & ~1);
+        } finally {
+            geometryFrame.recycle();
+        }
         int fps = detectVideoFps(inputVideo);
-        long frameStepUs = 1000000L / fps;
+        long frameStepUs = 1000000L / fps; // Used for final-frame EOS estimate only.
         android.util.Log.i("GSwapVideo",
                 "Input FPS selected: " + fps
                 + ", durationUs: " + info.durationUs);
@@ -155,7 +166,9 @@ public class VideoProcessor {
                         }
 
                         java.util.Collections.sort(timestamps);
-
+                        if (timestamps.isEmpty())
+                            throw new java.io.IOException("Video contains no samples");
+                        long firstTimeUs = timestamps.get(0);
                         long previousTimeUs = -1;
 
                         for (long timeUs : timestamps) {
@@ -177,11 +190,12 @@ public class VideoProcessor {
                     android.util.Log.i("GSwapVideo", "Face swap completed at " + timeUs + " us");
                         try {
                             long t2 = System.nanoTime();
-                            encoder.addFrame(result, timeUs);
+                            encoder.addFrame(result, timeUs - firstTimeUs);
                             encodingNs += System.nanoTime() - t2;
                             processedFrames++;
                         android.util.Log.i("GSwapVideo", "Frame encoded at " + timeUs + " us");
-                        reportProgress(Math.min(95, (int) ((timeUs + frameStepUs) * 95L / Math.max(1L, info.durationUs))), "Processing frames");
+                        reportProgress(Math.min(95, (int) (((long) processedFrames * 95L)
+                                / Math.max(1, timestamps.size()))), "Processing frames");
                         } finally {
                             if (result != frame) result.recycle();
                         }

@@ -172,8 +172,8 @@ public class VideoEncoder implements AutoCloseable {
         long pts = presentationTimeUs;
         if (frameNumber > 0 && pts <= lastPresentationTimeUs)
             throw new IllegalArgumentException("Non-monotonic frame timestamp");
-        lastPresentationTimeUs = pts;
         codec.queueInputBuffer(index, 0, yuv.length, pts, 0);
+        lastPresentationTimeUs = pts;
         frameNumber++;
         drain(false);
     }
@@ -238,21 +238,30 @@ public class VideoEncoder implements AutoCloseable {
 
     public void finish() {
         if (finished) return;
-        drain(true);
-        finished = true;
+        try {
+            drain(true);
+            finished = true;
+        } catch (RuntimeException e) {
+            failed = true;
+            throw e;
+        }
     }
 
     @Override
     public void close() {
+        // finish() is explicit in VideoProcessor; never attempt to finish
+        // an aborted/partially encoded video during exception unwinding.
         try {
-            if (!finished) finish();
+            codec.stop();
         } finally {
             try {
-                codec.stop();
-            } finally {
                 codec.release();
-                if (muxerStarted) muxer.stop();
-                muxer.release();
+            } finally {
+                try {
+                    if (muxerStarted) muxer.stop();
+                } finally {
+                    muxer.release();
+                }
             }
         }
     }
