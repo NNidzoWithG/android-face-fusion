@@ -17,6 +17,8 @@ public class VideoEncoder implements AutoCloseable {
     private final MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
     private int track = -1;
     private int frameNumber = 0;
+    private final int[] pixelBuffer;
+    private final byte[] yuvBuffer;
     private boolean muxerStarted = false;
     private boolean finished = false;
 
@@ -29,6 +31,8 @@ public class VideoEncoder implements AutoCloseable {
         this.width = width;
         this.height = height;
         this.fps = fps;
+        this.pixelBuffer = new int[width * height];
+        this.yuvBuffer = new byte[width * height * 3 / 2];
 
         MediaCodec selected = null;
         int selectedFormat = -1;
@@ -106,7 +110,7 @@ public class VideoEncoder implements AutoCloseable {
         if (bitmap == null)
             throw new IllegalArgumentException("Null frame");
 
-        int[] pixels = new int[width * height];
+        int[] pixels = pixelBuffer;
         Bitmap scaled = bitmap;
         if (bitmap.getWidth() != width || bitmap.getHeight() != height)
             scaled = Bitmap.createScaledBitmap(
@@ -119,7 +123,7 @@ public class VideoEncoder implements AutoCloseable {
             if (scaled != bitmap) scaled.recycle();
         }
 
-        byte[] yuv = new byte[width * height * 3 / 2];
+        byte[] yuv = yuvBuffer;
         int frameSize = width * height;
         int uvIndex = frameSize;
         int vIndex = frameSize + frameSize / 4;

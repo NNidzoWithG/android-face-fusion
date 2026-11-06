@@ -28,11 +28,17 @@ public class FaceSwapper {
     private static final boolean BENCHMARK_USE_XNNPACK = false;
     private String activeProvider = "Not initialized";
     private long totalInferenceNs = 0;
+    private int inferenceCount = 0;
+    private long inferenceBlockNs = 0;
+    private int inferenceBlockCount = 0;
+    private final java.util.List<String> inferenceBlocks = new java.util.ArrayList<>();
     private final java.util.List<Double> inferenceSamples = new java.util.ArrayList<>();
     
     private OrtEnvironment env;
     private OrtSession session;
     private Context context;
+    private float[] cachedSourceEmbedding;
+    private float[] cachedTransformedEmbedding;
     private float[][] emap;  // Embedding transformation matrix
     private String imageInputName;     // Resolved model input name for image
     private String embeddingInputName; // Resolved model input name for embedding
@@ -216,48 +222,75 @@ public class FaceSwapper {
         }
 
         // Preprocess target face
-        Bitmap resizedTarget = Bitmap.createScaledBitmap(targetFace, INPUT_SIZE, INPUT_SIZE, true);
-        float[] targetData = bitmapToFloatArray(resizedTarget);
+        Bitmap resizedTarget = targetFace;
+        if (targetFace.getWidth() != INPUT_SIZE || targetFace.getHeight() != INPUT_SIZE) {
+            resizedTarget = Bitmap.createScaledBitmap(targetFace, INPUT_SIZE, INPUT_SIZE, true);
+        }
+        float[] targetData;
+        try {
+            targetData = bitmapToFloatArray(resizedTarget);
+        } finally {
+            if (resizedTarget != targetFace) resizedTarget.recycle();
+        }
 
         // Transform source embedding with emap (matching Python code)
         // Python: latent = np.dot(latent, self.emap)
         //         latent /= np.linalg.norm(latent)
-        float[] transformedEmbedding = applyEmapTransformation(sourceEmbedding);
+        float[] transformedEmbedding;
+        if (cachedSourceEmbedding != null
+                && java.util.Arrays.equals(cachedSourceEmbedding, sourceEmbedding)) {
+            transformedEmbedding = cachedTransformedEmbedding;
+        } else {
+            transformedEmbedding = applyEmapTransformation(sourceEmbedding);
+            cachedSourceEmbedding = sourceEmbedding.clone();
+            cachedTransformedEmbedding = transformedEmbedding;
+        }
         
         // Create input tensors
         long[] imageShape = {1, 3, INPUT_SIZE, INPUT_SIZE};
         long[] embeddingShape = {1, transformedEmbedding.length};
         
-        OnnxTensor targetTensor = OnnxTensor.createTensor(env, FloatBuffer.wrap(targetData), imageShape);
-        OnnxTensor embeddingTensor = OnnxTensor.createTensor(env, FloatBuffer.wrap(transformedEmbedding), embeddingShape);
+        try (OnnxTensor targetTensor = OnnxTensor.createTensor(
+                     env, FloatBuffer.wrap(targetData), imageShape);
+             OnnxTensor embeddingTensor = OnnxTensor.createTensor(
+                     env, FloatBuffer.wrap(transformedEmbedding), embeddingShape)) {
 
-        // Use resolved input names (determined by shape during initialization)
-        Log.d(TAG, "Model input names: image=" + imageInputName + ", embedding=" + embeddingInputName);
+            java.util.Map<String, OnnxTensor> inputs = new java.util.HashMap<>();
+            inputs.put(imageInputName, targetTensor);
+            inputs.put(embeddingInputName, embeddingTensor);
 
-        // Run inference
-        java.util.Map<String, OnnxTensor> inputs = new java.util.HashMap<>();
-        inputs.put(imageInputName, targetTensor);
-        inputs.put(embeddingInputName, embeddingTensor);
-        
-        long inferenceStartNs = System.nanoTime();
-        OrtSession.Result results = session.run(inputs);
-        long inferenceDurationNs = System.nanoTime() - inferenceStartNs;
-        totalInferenceNs += inferenceDurationNs;
-        if (inferenceSamples.size() < 5) {
-            inferenceSamples.add(inferenceDurationNs / 1e9);
+            long inferenceStartNs = System.nanoTime();
+
+            try (OrtSession.Result results = session.run(inputs)) {
+                long inferenceDurationNs = System.nanoTime() - inferenceStartNs;
+                totalInferenceNs += inferenceDurationNs;
+                inferenceCount++;
+                inferenceBlockNs += inferenceDurationNs;
+                inferenceBlockCount++;
+
+                if (inferenceBlockCount == 10) {
+                    inferenceBlocks.add(String.format(java.util.Locale.US,
+                            " B%d-%d:%.1fs",
+                            inferenceCount - 9,
+                            inferenceCount,
+                            inferenceBlockNs / 1e9 / inferenceBlockCount));
+                    inferenceBlockNs = 0;
+                    inferenceBlockCount = 0;
+                }
+
+                if (inferenceSamples.size() < 5) {
+                    inferenceSamples.add(inferenceDurationNs / 1e9);
+                }
+
+                Log.i("GSwapInference", String.format(java.util.Locale.US,
+                        "ONNX inference: %.3f s", inferenceDurationNs / 1e9));
+
+                float[][][][] outputData =
+                        (float[][][][]) results.get(0).getValue();
+
+                return floatArrayToBitmap(outputData[0]);
+            }
         }
-        Log.i("GSwapInference", String.format(java.util.Locale.US,
-                "ONNX inference: %.3f s", inferenceDurationNs / 1e9));
-
-        // Get swapped face
-        float[][][][] outputData = (float[][][][]) results.get(0).getValue();
-        Bitmap swappedFace = floatArrayToBitmap(outputData[0]);
-        
-        targetTensor.close();
-        embeddingTensor.close();
-        results.close();
-
-        return swappedFace;
     }
     
     /**
@@ -355,6 +388,12 @@ public class FaceSwapper {
     public void resetInferenceTiming() {
         totalInferenceNs = 0;
         inferenceSamples.clear();
+        inferenceCount = 0;
+        inferenceBlockNs = 0;
+        inferenceBlockCount = 0;
+        inferenceBlocks.clear();
+        cachedSourceEmbedding = null;
+        cachedTransformedEmbedding = null;
     }
 
     public String getInferenceSamples() {
@@ -363,7 +402,17 @@ public class FaceSwapper {
             report.append(String.format(java.util.Locale.US,
                     " F%d:%.1fs", i + 1, inferenceSamples.get(i)));
         }
-        return report.toString();
+        for (String block : inferenceBlocks) {
+                    report.append(block);
+                }
+                if (inferenceBlockCount > 0) {
+                    report.append(String.format(java.util.Locale.US,
+                            " B%d-%d:%.1fs",
+                            inferenceCount - inferenceBlockCount + 1,
+                            inferenceCount,
+                            inferenceBlockNs / 1e9 / inferenceBlockCount));
+                }
+                return report.toString();
     }
 
     public void close() {
