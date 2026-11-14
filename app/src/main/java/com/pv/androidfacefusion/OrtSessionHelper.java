@@ -42,6 +42,6 @@ public class OrtSessionHelper {
      */
     public static int getOptimalThreadCount() {
         int cores = Runtime.getRuntime().availableProcessors();
-        return Math.max(1, Math.min(4, cores));
+        return Math.max(1, Math.min(2, cores));
     }
 }
